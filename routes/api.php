@@ -22,6 +22,8 @@ Route::get('/health', [HealthController::class, 'check']);
 
 // 预约系统：查询队列状态（只读，前端 5s 轮询）、取号、放号
 Route::get('/reserve/state', [ReserveController::class, 'state']);
+// 移动端排队查询（只读）：按 key + serial_no 查自己的号码状态与前面人数
+Route::get('/reserve/position', [ReserveController::class, 'position']);
 Route::post('/reserve', [ReserveController::class, 'add']);
 Route::delete('/reserve', [ReserveController::class, 'remove']);
 

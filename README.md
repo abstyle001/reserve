@@ -1,6 +1,7 @@
 # ReserveApp · 预约取号系统
 
-![预约取号系统图](./doc/asset/reserve-sys.jpg)
+![预约取号系统图](./doc/asset/reserve-sys.png)
+![预约取号客户端](./doc/asset/reserve-customer.jpg)
 
 基于 Laravel 的轻量预约取号/放号系统，内置一个适合大厅大屏长期展示的**单页控制台**：超大号牌、取号/放号一键操作、队列状态实时轮询、本机号票管理。
 

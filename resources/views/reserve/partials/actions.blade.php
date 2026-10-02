@@ -19,7 +19,7 @@
         <span class="btn-spinner" x-show="$store.reserve.releasing" aria-hidden="true"></span>
         <span x-show="$store.reserve.releasing">放号中…</span>
         <span x-show="!$store.reserve.releasing"
-              x-text="$store.reserve.activeRecord() ? '放号 ' + $store.reserve.activeRecord().serial_no : '放 号'">放 号</span>
+              x-text="$store.reserve.activeTicket() ? '放号 ' + $store.reserve.activeTicket().serial_no : '放 号'">放 号</span>
     </button>
 
 </section>

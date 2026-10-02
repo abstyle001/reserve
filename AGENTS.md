@@ -24,7 +24,7 @@
 | 层 | 技术 | 版本 | 说明 |
 |---|---|---|---|
 | 后端 | Laravel | 8.75 | |
-| 语言 | PHP | ^7.3 / ^8.0 | 当前构建跑在 PHP 8 上 |
+| 语言 | PHP | 7.3（本机运行时） | composer.json 声明 ^7.3/^8.0，但本机 serve/测试跑在 macOS 自带 PHP 7.3 上，**禁用 PHP 7.4+ 语法**（如 `fn()=>` 箭头函数，会 ParseError） |
 | 数据库 | SQLite | — | 单文件 `database/database.sqlite` |
 | 构建 | laravel-mix | ^6.0.6（webpack 5） | **实际构建工具是 webpack.mix.js** |
 | 前端框架 | Alpine.js | ^3.4 | |
@@ -40,7 +40,7 @@
 ```
 app/
   Http/Controllers/Api/
-    ReserveController.php      # 取号(add) / 放号(remove) / 查询状态(state) —— 全部业务在此
+    ReserveController.php      # 取号(add) / 放号(remove) / 查询状态(state) / 排队位置(position) —— 全部业务在此
     HealthController.php       # 探活示例
   Models/
     Customer.php               # 表 customers：一条 = 一位客户的一次取号
@@ -56,17 +56,21 @@ resources/
       app.js                   # 入口：注册 store → Alpine.start() → init()
       config.js                # 常量（轮询间隔 / localStorage key / 重试上限）
       api.js                   # axios 封装，统一解包 {code,message,data}
-      store.js                 # Alpine store（唯一数据源，含轮询/降级/动画）
+      store.js                 # Alpine store（唯一数据源，含轮询/降级/动画/二维码）
       storage.js               # localStorage 读写（try/catch + 版本号 + 裁剪）
+    mobile/                    # ⭐ 移动端排队查询模块（独立入口，只读）
+      app.js / config.js / api.js / store.js / storage.js  # 分层与 reserve 一致
   views/
     reserve/                   # ⭐ 预约大屏 Blade
       index.blade.php          # 单页骨架，body 注入 data-reserve-config
       partials/                # topbar / ticket / actions / stats / records / toast
+    mobile/                    # ⭐ 移动端排队查询 Blade（/m，只读）
+      index.blade.php          # 查询表单 + 结果卡（前面还有 N 人）
     ...                        # 其余为 Breeze 鉴权页面，与大屏无关
-  css/app.css                  # Tailwind 三层 + 苹果风组件类
+  css/app.css                  # Tailwind 三层 + 苹果风组件类（m-* 前缀为移动端）
 routes/api.php                 # POST/DELETE/GET /api/reserve*
-routes/web.php                 # GET /reserve → reserve.index
-webpack.mix.js                 # 构建入口（含 reserve 独立入口）
+routes/web.php                 # GET /reserve → 大屏；GET /m → 移动端排队查询
+webpack.mix.js                 # 构建入口（含 reserve / mobile 独立入口）
 tailwind.config.js             # content 已覆盖 resources/views/**
 ```
 
@@ -120,15 +124,38 @@ tailwind.config.js             # content 已覆盖 resources/views/**
   "queue_key": "A", "batch_no": 3,
   "current_no": 27, "active_count": 4, "need_reset": 0,
   "released_total": 23, "remaining": 4,
+  "tickets": [{"serial_no": 24, "is_finish": 1}, {"serial_no": 25, "is_finish": 0}],
   "server_time": "2026-10-02 10:00:00"
 }
 ```
 - `current_no` = 本批已发号上限；`active_count` = 本批未办结数量 = `remaining`。
 - `need_reset === 1` 表示本批已办结，下次取号会开新批次。
 - `released_total` 按**当前批次**统计，不要用全队列 count（跨批次会算错）。
+- `tickets` = 当前批次号票列表（serial_no 升序），**大屏号票面板的唯一数据源**。
+  号票必须后端下发：localStorage 是浏览器私有的，不同 origin/设备看到的不一致，
+  且本地 is_finish 永远不会被后端校正。
 - 失败：`422` / `500`，与上面同构。
 
 > 注意路由顺序：`GET /reserve/state` 应声明在任何 `/reserve/{param}` 通配之前。
+
+### `GET /api/reserve/position?key=xxx&serial_no=N` — 移动端排队查询（只读）
+
+用户在手机端查自己的号码：前面还有几人、是否已办结。**用户不知道 batch_no**，
+接口按该队列 `max(batch_no)` 定位最新批次后查 `serial_no`（依据见 §6 推论）。
+
+成功：`code:0` + `data`:
+```json
+{
+  "queue_key": "1窗口", "batch_no": 3, "serial_no": 27,
+  "status": "waiting", "ahead_count": 4,
+  "current_no": 30, "active_count": 5,
+  "server_time": "2026-10-02 10:00:00"
+}
+```
+- `status` 三态：`waiting`（排队中）/ `finished`（已办结）/ `not_found`（最新批次里没这个号，含换批后的旧号）。
+- `ahead_count` = 同批次 `is_finish=0` 且 `serial_no` 更小的数量，仅 `waiting` 时有意义。
+- `not_found` 是**正常状态不是错误**，`code` 恒为 0（轮询中换批会让旧号失效）。
+- 失败：`422`（key / serial_no 校验失败）/ `500`，同构。
 
 ---
 
@@ -151,6 +178,8 @@ tailwind.config.js             # content 已覆盖 resources/views/**
 
 - 同一队列的号票全局唯一性靠 `(queue_key, batch_no, serial_no)` 三元组保证。
 - `active_count` 归零 ≠ 删除批次记录，下次取号基于 `need_reset=1` 开新批，`batch_no` 单调递增。
+- **仍在排队的号码必然位于该队列最新批次**（新批次的开启条件是上一批全部办结）。
+  `position` 接口因此只需按 `max(batch_no)` 查 `serial_no`，用户无需输入批次号。
 - 前端放号必须同时携带 `batch_no` 和 `serial_no`，**不能只用 serial_no**（跨批次会冲突）。
 
 ---
@@ -159,11 +188,19 @@ tailwind.config.js             # content 已覆盖 resources/views/**
 
 ### 交互流程
 
-1. 页面加载 → store `init()` 读 localStorage 恢复队列 key 与历史号票 → 立刻 `poll()` 一次 → `setTimeout` 调度轮询（间隔 5s，失败按 `min(5000×1.5^n, 20000ms)` 退避）。
-2. 取号成功 → 写入 records → `latest` 触发号牌弹跳动画 → toast → 立即 `poll()`。
-3. 放号：先点选 records 中一条 → 按钮文字变为「放号 N」→ 调 DELETE → 成功标记 `is_finish=1`；后端返回 `code:1` 时本地标记 `is_invalid`（提示但保留记录）。
+1. 页面加载 → store `init()` 读 localStorage 恢复队列 key 与「本机取的号」→ 立刻 `poll()` 一次 → `setTimeout` 调度轮询（间隔 5s，失败按 `min(5000×1.5^n, 20000ms)` 退避）。
+2. 取号成功 → 写入 records（仅作「本机」角标）→ `latest` 触发号牌弹跳动画 + 生成扫码二维码 → toast → 立即 `poll()`。
+3. 放号：先点选「当前号票」面板中一张（数据来自后端 `state.tickets`）→ 按钮文字变为「放号 N」→ 调 DELETE（`batch_no` 取 `state.batch_no`）→ 成功后清选中态并立即 `poll()`，面板状态以后端为准。
 4. 页面 `visibilitychange` 隐藏时暂停轮询，回来立即补一次。
 5. 「放大」按钮：切换 `html.zoomed`（改根字号）+ 调 `requestFullscreen()`（必须用户手势）；监听 `fullscreenchange` 同步状态。**不要**用 `transform: scale()` 放大（会糊且拖垮 backdrop-blur）。
+
+### 号票面板数据源（铁律）
+
+- 「当前号票」面板**只能渲染后端 `state.tickets`**，绝不能渲染 localStorage records。
+  localStorage 按 origin 隔离：localhost 与局域网 IP 是两个 origin，各自只存了
+  本机取过的号，且本地 `is_finish` 与后端无同步——渲染本地记录必然不一致。
+- localStorage records 的唯一用途：`isMine(serial)` 给本机取的号打「本机」角标。
+- 选中态用 `selectedSerial`（serial_no 在当前批次唯一）；换批后轮询会自动清掉失效选中。
 
 ### 已知坑
 
@@ -172,6 +209,14 @@ tailwind.config.js             # content 已覆盖 resources/views/**
 - `x-cloak` 必须配 CSS `[x-cloak]{display:none!important}`（已写入 `app.css`）。
 - 苹果风样式集中在 `resources/css/app.css` 的 `@layer components`；新增样式请遵循「底 / 玻璃 / 按钮 / 号牌 / 徽章」的命名空间。
 - `queueOptions` 由后端 Blade 注入 `body[data-reserve-config]`；改队列列表请改路由/视图层，不要写死进 JS。
+
+### 移动端排队查询（/m，只读）
+
+- **只读约束是硬性的**：`resources/js/mobile/api.js` 整层没有 POST/DELETE，页面不放任何取号/放号入口。
+- 号码来源优先级：URL 参数 `?key=xxx&no=27`（大屏二维码扫码直达）→ localStorage（`mobile:ticket:v1`）→ 查询表单。
+- 轮询：绑定号码后每 5s 查一次 `position`，失败退避同 reserve；`visibilitychange` 隐藏暂停、回来立即补一次。
+- **轮询重排要放在 poll 链的最后一个 `then` 里**（成功失败都重排，失败由 schedulePoll 内部退避）；只在失败分支重排会导致首次成功后轮询停掉（reserve 模块曾踩过这个 bug，已修）。
+- 大屏二维码：`reserve/store.js` 的 `updateQr()` 用 `qrcode` 包生成 dataURL，内容为 `location.origin + /m?key&no`；**目标票由 `qrTicket()` 决定：优先当前选中的「待叫号」票，否则回退本机刚取的号（currentLatest）**，选中已放号的票不生成；同一目标不重复生成（闭包 `lastQrTarget` 去重），换批/取消选中自动隐藏。
 
 ---
 
@@ -205,7 +250,7 @@ php artisan serve
 
 - Feature 测试放 `tests/Feature/`，命名 `XxxTest.php`，继承 `Tests\TestCase`，用 `RefreshDatabase`（sqlite 会重建表）。
 - 运行：`./vendor/bin/phpunit --filter=ReserveStateTest`（`php artisan test` 亦可）。
-- 现有测试参考：`tests/Feature/ReserveStateTest.php`（覆盖取号→状态→放号→换批全链路）。
+- 现有测试参考：`tests/Feature/ReserveStateTest.php`（覆盖取号→状态→放号→换批全链路）、`tests/Feature/ReservePositionTest.php`（移动端排队查询：前面人数 / 已办结 / 换批后旧号 not_found / 只读无副作用）。
 - 提交信息：`feat: 取号放号大屏控制台`、`fix: 放号并发下批次计算错误` 这类 `type: 主题` 格式。
 
 ---
@@ -221,10 +266,14 @@ php artisan serve
 | 放号报"重复放号" | 只用 `serial_no` 没带 `batch_no` | 三元组缺一不可 |
 | DELETE 请求体丢失 | axios 把第二个参数当 config | 用 `{ data: {...} }` 包一层 |
 | 页面首屏闪现 raw 状态 | 缺 `[x-cloak]` 或 x-show 未配 | 检查 CSS + x-cloak 属性 |
+| 轮询首次成功后就停了 | schedulePoll 只写在失败分支 | 重排放 poll 链最后一个 then，成功失败都重排 |
+| 两个入口/设备号票面板不一致 | 号票列表渲染了 localStorage records（按 origin 隔离） | 面板只渲染后端 `state.tickets`；localStorage 仅作「本机」角标 |
+| 接口 500 报 `unexpected '=>'` | 运行时 PHP 7.3，用了 `fn()=>` 箭头函数 | 改回 `function ($x) { return ...; }` 传统闭包 |
+| 手机扫码打不开页面 | `php artisan serve` 默认只绑 127.0.0.1 | 启动加 `--host=0.0.0.0`；大屏也用局域网 IP 打开（二维码取 location.origin） |
 | 列表点选后高亮错乱 | `x-for` 里又开了 `x-data` | 改用 store `selectedId` |
 | 接口在浏览器 401 | 误把 API 路由放进 `web.php` 或请求没带 CSRF | API 走 `api.php`（无 CSRF），确认 baseURL=`/api` |
 | PHP 命令直接报 `invalid PHP_VERSION` | 用了 macOS 系统自带 php | 切到 brew php |
 
 ---
 
-*最后更新：2026-10-02（取号放号大屏控制台 v1）*
+*最后更新：2026-10-02（号票面板改为后端 tickets 驱动，修复多端不一致）*

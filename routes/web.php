@@ -26,6 +26,13 @@ Route::get('/reserve', function () {
     ]);
 })->name('reserve.index');
 
+// 移动端排队查询（只读）：扫码或手动输入号码，查看自己前面还有几人
+Route::get('/m', function () {
+    return view('mobile.index', [
+        'queueOptions' => config('reserve.queue_options'),
+    ]);
+})->name('mobile.index');
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth'])->name('dashboard');

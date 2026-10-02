@@ -133,4 +133,53 @@ class ReserveStateTest extends TestCase
             'need_reset' => 0,
         ]);
     }
+
+    public function test_state_returns_current_batch_tickets()
+    {
+        $key = 'counter-5';
+
+        // 当前批次取 3 个号，放掉 2 号
+        $this->postJson('/api/reserve', ['key' => $key]);
+        $this->postJson('/api/reserve', ['key' => $key]);
+        $this->postJson('/api/reserve', ['key' => $key]);
+        $this->deleteJson('/api/reserve', [
+            'key' => $key,
+            'batch_no' => 1,
+            'serial_no' => 2,
+        ])->assertJsonPath('code', 0);
+
+        // tickets 必须完整反映后端真实状态：1 待叫号、2 已放号、3 待叫号
+        $this->getJson('/api/reserve/state?key=' . urlencode($key))
+            ->assertOk()
+            ->assertJsonPath('data.tickets', [
+                ['serial_no' => 1, 'is_finish' => 0],
+                ['serial_no' => 2, 'is_finish' => 1],
+                ['serial_no' => 3, 'is_finish' => 0],
+            ]);
+    }
+
+    public function test_tickets_only_contains_current_batch()
+    {
+        $key = 'counter-6';
+
+        // 第一批取 2 个并全部办结，换第二批再取 1 个
+        $this->postJson('/api/reserve', ['key' => $key]);
+        $this->postJson('/api/reserve', ['key' => $key]);
+        foreach ([1, 2] as $no) {
+            $this->deleteJson('/api/reserve', [
+                'key' => $key,
+                'batch_no' => 1,
+                'serial_no' => $no,
+            ])->assertJsonPath('code', 0);
+        }
+        $this->postJson('/api/reserve', ['key' => $key]);
+
+        // tickets 只有第二批的 1 号，第一批的历史号票不能出现
+        $this->getJson('/api/reserve/state?key=' . urlencode($key))
+            ->assertOk()
+            ->assertJsonPath('data.batch_no', 2)
+            ->assertJsonPath('data.tickets', [
+                ['serial_no' => 1, 'is_finish' => 0],
+            ]);
+    }
 }

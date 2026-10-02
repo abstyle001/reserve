@@ -267,6 +267,47 @@
     .toast--error {
         @apply border border-rose-300/30 bg-rose-300/95 text-rose-900;
     }
+
+    /* ---------- 移动端排队查询（/m） ---------- */
+    .m-label {
+        @apply text-sm uppercase tracking-[0.25em] text-white/55;
+    }
+
+    .m-input {
+        @apply w-full rounded-2xl border border-white/20 bg-white/10 px-6 py-4;
+        @apply text-2xl font-medium tabular-nums text-white outline-none backdrop-blur-xl transition;
+        @apply placeholder:text-white/30 focus:border-white/45;
+    }
+
+    .m-btn-primary {
+        @apply w-full rounded-3xl px-8 py-5 text-2xl font-semibold text-white transition;
+        background: linear-gradient(180deg, #4c9bff 0%, #0a6cf0 100%);
+        box-shadow:
+            0 18px 40px -16px rgba(10, 108, 240, 0.8),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .m-btn-primary:active {
+        transform: scale(0.98);
+    }
+
+    .m-btn-ghost {
+        @apply w-full rounded-full border border-white/20 bg-white/10 py-3 text-lg text-white/80 transition;
+        @apply hover:border-white/40 hover:bg-white/15;
+    }
+
+    /* 「前面还有 N 人」的主视觉大数字：等宽数字防轮询抖动 */
+    .m-hero {
+        font-variant-numeric: tabular-nums;
+        font-size: clamp(5rem, 30vw, 8rem);
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 1;
+        background: linear-gradient(180deg, #ffffff 32%, #98a2b3 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
 }
 
 /* ==========================================================================

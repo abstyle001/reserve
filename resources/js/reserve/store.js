@@ -10,17 +10,22 @@
  *   - 取号返回 {queue_key, batch_no, serial_no}，放号必须带 batch_no + serial_no
  *   - code === 0 成功；code === 1 表示「记录不存在 / 重复放号」；422/500 走 message
  *   - active_count 归零 → need_reset = 1 → 再取号会开新批次
+ *
+ * 号票面板数据源（重要）：
+ *   - 面板列表来自后端 state.tickets（当前批次真实号票），不是 localStorage！
+ *     localStorage 是浏览器私有的：不同 origin / 设备看到的列表会不一致，
+ *     且本地 is_finish 永远不会被后端校正（别处放号后本地仍显示待叫号）。
+ *   - localStorage records 只保留一个用途：标记「哪些号是本机取的」（面板角标）。
  */
 
 import { POLL_MS, POLL_BACKOFF_MAX_MS, DEFAULT_QUEUE_KEY } from './config';
 import * as api from './api';
+import QRCode from 'qrcode';
 import {
     loadQueueKey,
     saveQueueKey,
     loadRecords,
     appendRecord,
-    markRecordFinished,
-    markRecordInvalid,
 } from './storage';
 
 function readScreenConfig() {
@@ -36,6 +41,8 @@ export function registerReserveStore(Alpine) {
     // 定时器句柄放闭包里，避免被 Alpine 的响应式代理追踪
     let pollTimer = null;
     let toastTimer = null;
+    // 最近一次生成二维码的目标（queueKey:batch:serial），同一张票不重复生成
+    let lastQrTarget = null;
 
     Alpine.store('reserve', {
         // ---------- 状态 ----------
@@ -43,8 +50,8 @@ export function registerReserveStore(Alpine) {
         queueOptions: [DEFAULT_QUEUE_KEY],
         state: null, // GET /api/reserve/state 的 data
         latest: null, // 最近一次取到的号 {batch_no, serial_no}
-        records: [], // 本机取号记录（localStorage）
-        selectedId: null,
+        records: [], // 本机取号记录（localStorage，仅用于「本机取的」角标）
+        selectedSerial: null, // 选中的号票 serial_no（当前批次内唯一）
         initializing: true,
         taking: false,
         releasing: false,
@@ -53,6 +60,7 @@ export function registerReserveStore(Alpine) {
         online: true, // 轮询是否在线
         deferred: 0, // 连续轮询失败次数（用于退避）
         zoomed: false,
+        qrUrl: '', // 最新号票的扫码直达二维码（dataURL），无最新号票时为空
 
         // ---------- 初始化 ----------
         init() {
@@ -112,14 +120,22 @@ export function registerReserveStore(Alpine) {
                     this.state = data;
                     this.online = true;
                     this.deferred = 0; // 恢复标准间隔
+                    this.updateQr(); // 换批后 currentLatest() 失效，二维码随之隐藏
+                    // 选中的号票不在当前批次里了（换批），清掉选中态
+                    if (this.selectedSerial !== null && !this.activeTicket()) {
+                        this.selectedSerial = null;
+                    }
                 })
                 .catch(() => {
                     this.online = false;
                     this.deferred += 1;
-                    this.schedulePoll();
                 })
                 .then(() => {
                     this.initializing = false;
+                    // 无论成功失败都排下一轮（失败时 schedulePoll 内部按 deferred 退避）
+                    if (!document.hidden) {
+                        this.schedulePoll();
+                    }
                 });
         },
 
@@ -128,8 +144,49 @@ export function registerReserveStore(Alpine) {
                 this.clearPoll();
             } else {
                 this.poll();
-                this.schedulePoll();
             }
+        },
+
+        /**
+         * 二维码的目标号票：
+         *   1. 当前选中的「待叫号」票（操作员点选哪张，就展示哪张的二维码）
+         *   2. 否则回退到本机刚取的号（currentLatest）
+         * 内容为绝对地址 /m?key=xxx&no=27，手机扫码后自动查询该号码。
+         */
+        qrTicket() {
+            const ticket = this.activeTicket();
+            if (ticket && Number(ticket.is_finish) === 0 && this.state) {
+                return { batch_no: Number(this.state.batch_no), serial_no: Number(ticket.serial_no) };
+            }
+            return this.currentLatest();
+        },
+
+        updateQr() {
+            const target0 = this.qrTicket();
+            if (!target0) {
+                this.qrUrl = '';
+                lastQrTarget = null;
+                return;
+            }
+
+            const target = `${this.queueKey}:${target0.batch_no}:${target0.serial_no}`;
+            if (target === lastQrTarget) return; // 同一张票不重复生成
+            lastQrTarget = target;
+
+            const url =
+                `${window.location.origin}/m?key=${encodeURIComponent(this.queueKey)}` +
+                `&no=${target0.serial_no}`;
+
+            QRCode.toDataURL(url, { margin: 1, width: 240 })
+                .then((dataUrl) => {
+                    // 异步回来时目标可能已变（又取了新号 / 换了选中票），只对当前目标生效
+                    if (lastQrTarget === target) {
+                        this.qrUrl = dataUrl;
+                    }
+                })
+                .catch(() => {
+                    this.qrUrl = '';
+                });
         },
 
         // ---------- 取号 ----------
@@ -155,6 +212,7 @@ export function registerReserveStore(Alpine) {
 
                     this.records = appendRecord(record);
                     this.latest = { batch_no: data.batch_no, serial_no: data.serial_no };
+                    this.updateQr(); // 为新号票生成扫码直达二维码
                     this.flash = true;
                     setTimeout(() => {
                         this.flash = false;
@@ -175,12 +233,13 @@ export function registerReserveStore(Alpine) {
         release() {
             if (this.releasing) return;
 
-            const record = this.records.find((item) => item.id === this.selectedId);
-            if (!record) {
+            // 放号目标来自后端 tickets（当前批次），批次号取 state.batch_no
+            const ticket = this.activeTicket();
+            if (!ticket) {
                 this.pushToast('error', '请先选择要放号的号票');
                 return;
             }
-            if (record.is_finish) {
+            if (Number(ticket.is_finish) === 1) {
                 this.pushToast('error', '该号已放号');
                 return;
             }
@@ -188,34 +247,29 @@ export function registerReserveStore(Alpine) {
             this.releasing = true;
 
             api
-                .releaseNumber(this.queueKey, record.batch_no, record.serial_no)
+                .releaseNumber(this.queueKey, this.state.batch_no, ticket.serial_no)
                 .then(() => {
-                    this.records = markRecordFinished(record.id);
-                    this.pushToast('success', `${record.serial_no} 号已放号`);
+                    this.pushToast('success', `${ticket.serial_no} 号已放号`);
+                    this.selectedSerial = null;
+                    // 号票状态以后端为准，poll 回来 tickets 里的 is_finish 就是新的
                     return this.poll();
                 })
                 .catch((error) => {
-                    const message = error.message || '放号失败';
-
-                    // 后端 code === 1：记录不存在 / 重复放号 —— 本地同步为失效，但不丢记录
-                    if (/不存在|重复/.test(message)) {
-                        this.records = markRecordInvalid(record.id);
-                        this.selectedId = null;
-                    }
-
-                    this.pushToast('error', message);
+                    this.pushToast('error', error.message || '放号失败');
                 })
                 .then(() => {
                     this.releasing = false;
                 });
         },
 
-        selectRecord(id) {
-            this.selectedId = this.selectedId === id ? null : id;
+        selectRecord(serialNo) {
+            this.selectedSerial = this.selectedSerial === serialNo ? null : serialNo;
+            this.updateQr(); // 二维码跟随选中的待叫号票
         },
 
         selectQueue(key) {
             this.queueKey = key;
+            this.selectedSerial = null; // 换队列后旧选择失效
             saveQueueKey(key);
             this.poll();
         },
@@ -260,18 +314,29 @@ export function registerReserveStore(Alpine) {
         },
 
         // ---------- 派生数据（模板直接调用） ----------
-        /** 当前选中的号票记录，没选返回 null；历史批次的记录视为未选（不可放号） */
-        activeRecord() {
-            const record = this.records.find((item) => item.id === this.selectedId) || null;
-            if (!record || !this.state) return record;
-            return Number(record.batch_no) === Number(this.state.batch_no) ? record : null;
+        /** 当前批次号票列表（后端下发，所有端看到的一致） */
+        currentTickets() {
+            return this.state && Array.isArray(this.state.tickets) ? this.state.tickets : [];
         },
 
-        /** 当前批次的号票列表；历史批次的记录不再展示（仍保留在 localStorage） */
-        currentBatchRecords() {
-            if (!this.state) return this.records;
+        /** 当前选中的号票（来自后端 tickets），没选或已换批返回 null */
+        activeTicket() {
+            if (this.selectedSerial === null || !this.state) return null;
+            return (
+                this.currentTickets().find(
+                    (t) => Number(t.serial_no) === Number(this.selectedSerial),
+                ) || null
+            );
+        },
+
+        /** 该号是否本机取的（面板「本机」角标，数据来自 localStorage records） */
+        isMine(serialNo) {
+            if (!this.state) return false;
             const batch = Number(this.state.batch_no);
-            return this.records.filter((item) => Number(item.batch_no) === batch);
+            return this.records.some(
+                (item) =>
+                    Number(item.batch_no) === batch && Number(item.serial_no) === Number(serialNo),
+            );
         },
 
         /** 号牌大字：仅当 latest 属于当前批次时才展示，换批后回到「—」占位态 */
@@ -281,18 +346,14 @@ export function registerReserveStore(Alpine) {
             return Number(this.latest.batch_no) === Number(this.state.batch_no) ? this.latest : null;
         },
 
-        /** 放号按钮是否可点：选中了一条且该条未放号 */
+        /** 放号按钮是否可点：选中了一张且该票未放号 */
         canRelease() {
-            const record = this.activeRecord();
-            return !!record && !record.is_finish;
+            const ticket = this.activeTicket();
+            return !!ticket && Number(ticket.is_finish) === 0;
         },
 
         needReset() {
             return this.state ? Number(this.state.need_reset) === 1 : false;
-        },
-
-        isHistoryBatch(batchNo) {
-            return this.state ? Number(batchNo) < Number(this.state.batch_no) : false;
         },
     });
 }

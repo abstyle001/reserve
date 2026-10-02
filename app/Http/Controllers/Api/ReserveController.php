@@ -156,6 +156,22 @@ class ReserveController extends Controller
                 ->where("is_finish", 1)
                 ->count();
 
+            // 当前批次的号票列表：大屏号票面板的唯一数据源。
+            // 号票必须由后端下发（而不是浏览器 localStorage），
+            // 否则不同设备 / 不同 origin 看到的面板不一致，本地 is_finish 也会与后端脱节。
+            $tickets = Customer::where("queue_key", $key)
+                ->where("batch_no", $batchNo)
+                ->orderBy("serial_no")
+                ->get(["serial_no", "is_finish"])
+                ->map(function ($c) {
+                    return [
+                        "serial_no" => (int) $c->serial_no,
+                        "is_finish" => (int) $c->is_finish,
+                    ];
+                })
+                ->values()
+                ->all();
+
             $data = [
                 "queue_key" => $key,
                 "batch_no" => $batchNo,
@@ -164,6 +180,7 @@ class ReserveController extends Controller
                 "need_reset" => $generator ? (int) $generator->need_reset : 1, // 1=本批已办结
                 "released_total" => $releasedTotal, // 本批已放号
                 "remaining" => $generator ? (int) $generator->active_count : 0, // 剩余 = 未办结数量
+                "tickets" => $tickets, // 当前批次号票 [{serial_no, is_finish}]
                 "server_time" => now()->toDateTimeString(),
             ];
         } catch (\Throwable $e) {
@@ -171,6 +188,108 @@ class ReserveController extends Controller
                 [
                     "code" => 500,
                     "message" => "查询队列状态失败：" . $e->getMessage(),
+                ],
+                500,
+            );
+        }
+
+        return response()->json([
+            "code" => 0,
+            "message" => "查询成功",
+            "data" => $data,
+        ]);
+    }
+
+    /**
+     * 移动端排队查询（只读接口）
+     *
+     * GET /api/reserve/position?key=xxx&serial_no=27
+     *
+     * 用户在大屏上只看到自己的 serial_no，不知道 batch_no。
+     * 由状态机推论：新批次只会在上一批全部办结（need_reset=1）后才开启，
+     * 因此仍在排队的号码必然位于该队列的最新批次 —— 这里按 max(batch_no) 定位，
+     * 用户无需输入批次号。
+     *
+     * 与 state() 一样：纯 SELECT，不开事务、不加锁（前端会 5s 轮询）。
+     * 「未找到」不是错误而是正常状态（换批后旧号失效），所以 code 恒为 0，
+     * 用 data.status 区分 waiting / finished / not_found。
+     */
+    public function position(Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                "key" => "required|string|max:255",
+                "serial_no" => "required|integer|min:1",
+            ],
+            [
+                "key.required" => "队列标识不能为空",
+                "key.max" => "队列标识不能超过 255 个字符",
+                "serial_no.required" => "号码不能为空",
+                "serial_no.integer" => "号码必须是数字",
+                "serial_no.min" => "号码必须大于 0",
+            ],
+        );
+
+        if ($validator->fails()) {
+            return response()->json(
+                [
+                    "code" => 422,
+                    "message" => "参数校验失败",
+                    "errors" => $validator->errors(),
+                ],
+                422,
+            );
+        }
+
+        $key = $request->input("key");
+        $serialNo = (int) $request->input("serial_no");
+
+        try {
+            // 取该队列最新批次（batch_no 最大的那条，无论是否已办结）
+            $generator = SerialGenerator::where("queue_key", $key)
+                ->orderByDesc("batch_no")
+                ->first();
+
+            $batchNo = $generator ? (int) $generator->batch_no : 0;
+
+            $customer = $generator
+                ? Customer::where("queue_key", $key)
+                    ->where("batch_no", $batchNo)
+                    ->where("serial_no", $serialNo)
+                    ->first()
+                : null;
+
+            $aheadCount = 0;
+            if (!$customer) {
+                $status = "not_found";
+            } elseif ((int) $customer->is_finish === 1) {
+                $status = "finished";
+            } else {
+                $status = "waiting";
+                // 前面还有几人 = 同批次未办结且号码更小的数量
+                $aheadCount = Customer::where("queue_key", $key)
+                    ->where("batch_no", $batchNo)
+                    ->where("is_finish", 0)
+                    ->where("serial_no", "<", $serialNo)
+                    ->count();
+            }
+
+            $data = [
+                "queue_key" => $key,
+                "batch_no" => $batchNo,
+                "serial_no" => $serialNo,
+                "status" => $status, // waiting / finished / not_found
+                "ahead_count" => $aheadCount, // 仅 waiting 时有意义
+                "current_no" => $generator ? (int) $generator->current_no : 0,
+                "active_count" => $generator ? (int) $generator->active_count : 0,
+                "server_time" => now()->toDateTimeString(),
+            ];
+        } catch (\Throwable $e) {
+            return response()->json(
+                [
+                    "code" => 500,
+                    "message" => "查询排队位置失败：" . $e->getMessage(),
                 ],
                 500,
             );

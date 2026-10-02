@@ -32,4 +32,19 @@
         </span>
     </div>
 
+    {{-- 扫码直达：跟随选中的待叫号票（无选中时为本机刚取的号），手机扫码实时查看排队进度 --}}
+    <div class="flex items-center justify-center gap-5 pb-2" x-show="$store.reserve.qrUrl">
+        <img
+            :src="$store.reserve.qrUrl"
+            alt="扫码查看排队进度"
+            class="h-28 w-28 rounded-2xl bg-white p-2"
+        >
+        <div class="text-left">
+            <p class="text-2xl font-medium text-white/85">
+                手机扫码<template x-if="$store.reserve.qrTicket()"><span class="text-white/50" x-text="' · ' + $store.reserve.qrTicket().serial_no + ' 号'"></span></template>
+            </p>
+            <p class="mt-1 text-lg text-white/50">实时查看前面还有几人</p>
+        </div>
+    </div>
+
 </section>
