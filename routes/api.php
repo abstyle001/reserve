@@ -20,12 +20,8 @@ use Illuminate\Support\Facades\Route;
 // 健康检查（公开访问，无需鉴权）
 Route::get('/health', [HealthController::class, 'check']);
 
-// Post：列表（公开访问，无需鉴权）
-Route::get('/posts', [PostController::class, 'index']);
-
-// Post：创建（公开访问，无需鉴权）
-Route::post('/posts', [PostController::class, 'create']);
-
+// 预约系统：查询队列状态（只读，前端 5s 轮询）、取号、放号
+Route::get('/reserve/state', [ReserveController::class, 'state']);
 Route::post('/reserve', [ReserveController::class, 'add']);
 Route::delete('/reserve', [ReserveController::class, 'remove']);
 

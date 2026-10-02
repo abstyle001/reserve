@@ -1,3 +1,288 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ==========================================================================
+   基础层
+   ========================================================================== */
+@layer base {
+    /* Alpine 首帧闪烁防护：x-cloak 元素在 x-show/x-if 求值前不显示 */
+    [x-cloak] {
+        display: none !important;
+    }
+
+    /* 放大模式：只改根字号，页面所有 rem 单位跟着放大（比 transform: scale 更清晰） */
+    html.zoomed {
+        font-size: 22px;
+    }
+}
+
+/* ==========================================================================
+   组件层 —— 苹果官网风格：大圆角、大留白、毛玻璃、细腻高光边
+   ========================================================================== */
+@layer components {
+    /* 深色底 + 顶部冷光 + 右下发散的紫色光晕 */
+    .screen {
+        background:
+            radial-gradient(1200px 620px at 50% -10%, rgba(64, 120, 255, 0.28), transparent 60%),
+            radial-gradient(900px 520px at 100% 110%, rgba(120, 80, 255, 0.22), transparent 60%),
+            linear-gradient(180deg, #101014 0%, #0b0b0e 55%, #000000 100%);
+    }
+
+    /* 毛玻璃卡片 */
+    .glass {
+        @apply rounded-[2.25rem] border border-white/15 bg-white/10 backdrop-blur-2xl;
+        box-shadow:
+            0 24px 60px -24px rgba(0, 0, 0, 0.75),
+            inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    .stat-card {
+        @apply flex flex-col items-center justify-center gap-3 px-6 py-8;
+    }
+
+    /* 品牌标识：蓝色渐变圆点 */
+    .brand-mark {
+        @apply block h-12 w-12 shrink-0 rounded-2xl;
+        background: linear-gradient(145deg, #52a6ff, #0a6cf0 55%, #5e5ce6);
+        box-shadow: 0 10px 26px -8px rgba(10, 108, 240, 0.8);
+    }
+
+    .section-title {
+        @apply text-2xl font-semibold tracking-tight text-white 3xl:text-3xl;
+    }
+
+    /* ---------- 队列选择 ---------- */
+    .queue-picker {
+        @apply flex items-center gap-3;
+    }
+
+    .queue-picker__label {
+        @apply text-base text-white/50;
+    }
+
+    .queue-picker__input {
+        @apply cursor-pointer appearance-none rounded-2xl border border-white/20 bg-white/10 px-6 py-3;
+        @apply text-xl font-medium text-white outline-none backdrop-blur-xl transition;
+        @apply focus:border-white/45;
+        padding-right: 2.75rem;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23ffffff' opacity='0.55'%3E%3Cpath fill-rule='evenodd' d='M5.5 7.5 10 12l4.5-4.5z' clip-rule='evenodd'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.9rem center;
+        background-size: 1.25rem;
+    }
+
+    .queue-picker__input option {
+        @apply bg-zinc-900 text-white;
+    }
+
+    /* ---------- 连接状态灯 ---------- */
+    .status-dot {
+        @apply block h-3 w-3 rounded-full transition;
+    }
+
+    .status-dot--online {
+        background: #30d158;
+        box-shadow: 0 0 16px 2px rgba(48, 209, 88, 0.75);
+    }
+
+    .status-dot--offline {
+        background: #ff453a;
+        box-shadow: 0 0 16px 2px rgba(255, 69, 58, 0.7);
+    }
+
+    /* ---------- 按钮 ---------- */
+    .btn-ghost {
+        @apply rounded-full border border-white/20 bg-white/10 px-8 py-3 text-lg font-medium text-white;
+        @apply backdrop-blur-xl transition hover:border-white/40 hover:bg-white/15;
+    }
+
+    .btn-hero {
+        @apply relative inline-flex flex-1 items-center justify-center gap-4 rounded-[2rem] px-12 py-9;
+        @apply text-3xl font-semibold tracking-tight text-white select-none transition-all duration-200;
+        box-shadow:
+            0 22px 50px -18px rgba(0, 0, 0, 0.7),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .btn-hero:active:not([disabled]) {
+        transform: scale(0.975);
+    }
+
+    .btn-hero[disabled] {
+        @apply cursor-not-allowed opacity-50;
+    }
+
+    .btn-take {
+        @apply btn-hero;
+        background: linear-gradient(180deg, #4c9bff 0%, #0a6cf0 100%);
+    }
+
+    .btn-release {
+        @apply btn-hero;
+        background: linear-gradient(180deg, #3ddc84 0%, #0a9f5c 100%);
+    }
+
+    .btn-spinner {
+        @apply block h-7 w-7 animate-spin rounded-full border-[3px] border-white/35;
+        border-top-color: #ffffff;
+    }
+
+    /* ---------- 号牌 ---------- */
+    .ticket-shell {
+        /* min-h-0 + overflow-hidden：内容超高时只裁剪号牌区，绝不把放号按钮顶出屏幕 */
+        @apply flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-14 py-8 3xl:py-10;
+    }
+
+    .ticket-number {
+        font-variant-numeric: tabular-nums; /* 等宽数字，防轮询刷新时抖动 */
+        font-size: clamp(6rem, 30vh, 16rem); /* 按视口高度取字号：矮窗口自动缩小，按钮永远留位 */
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 0.92;
+        background: linear-gradient(180deg, #ffffff 32%, #98a2b3 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .ticket-pop {
+        animation: ticketPop 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* 尚未取号时的占位态：去掉文字渐变，弱化显示，避免 em-dash 变成突兀的白条 */
+    .ticket-number--empty {
+        font-size: clamp(5rem, 22vh, 12rem);
+        background: none;
+        -webkit-background-clip: initial;
+        background-clip: initial;
+        color: rgba(255, 255, 255, 0.28);
+        -webkit-text-fill-color: rgba(255, 255, 255, 0.28);
+    }
+
+    @keyframes ticketPop {
+        0% {
+            transform: scale(0.86);
+            opacity: 0.2;
+        }
+        60% {
+            transform: scale(1.04);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .ticket-hint {
+        @apply flex justify-center pb-2 text-center;
+    }
+
+    /* ---------- 统计数字 ---------- */
+    .stat-label {
+        @apply text-base uppercase tracking-[0.25em] text-white/55;
+    }
+
+    .stat-value {
+        @apply text-5xl font-bold tabular-nums text-white 3xl:text-6xl;
+    }
+
+    .stat-value--amber {
+        @apply text-amber-300;
+    }
+
+    /* ---------- 徽章 ---------- */
+    .badge {
+        @apply inline-flex items-center rounded-full px-4 py-1.5 text-base font-medium;
+    }
+
+    .badge--blue {
+        @apply bg-apple-blue/20 text-apple-blue;
+    }
+
+    .badge--amber {
+        @apply bg-amber-400/20 text-amber-300;
+    }
+
+    .badge--gray {
+        @apply bg-white/10 text-white/55;
+    }
+
+    /* ---------- 号票 ---------- */
+    /* 网格布局：卡片定宽，塞不下时在面板内部纵向滚动（不挤压其他区域） */
+    .record-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+        align-content: start;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+    }
+
+    .record-grid::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .record-grid::-webkit-scrollbar-thumb {
+        @apply rounded-full;
+        background: rgba(255, 255, 255, 0.22);
+    }
+
+    .record-grid::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .ticket-chip {
+        @apply flex flex-col items-center justify-center gap-2 rounded-3xl px-4 py-6;
+        @apply border border-white/15 bg-white/[0.07] text-center transition-all duration-200;
+    }
+
+    .ticket-chip:hover {
+        @apply border-white/30 bg-white/15;
+    }
+
+    .ticket-chip__no {
+        @apply text-5xl font-bold tabular-nums text-white 3xl:text-6xl;
+    }
+
+    .ticket-chip--active {
+        @apply border-transparent;
+        background: linear-gradient(180deg, rgba(76, 155, 255, 0.55), rgba(10, 108, 240, 0.45));
+        box-shadow: 0 16px 40px -16px rgba(10, 108, 240, 0.85);
+        transform: translateY(-6px);
+    }
+
+    .ticket-chip--done {
+        @apply opacity-45;
+    }
+
+    /* ---------- 提示浮层 ---------- */
+    .toast {
+        @apply rounded-full px-12 py-5 text-2xl font-semibold shadow-2xl backdrop-blur-2xl 3xl:text-3xl;
+    }
+
+    .toast--success {
+        @apply border border-emerald-300/30 bg-emerald-300/95 text-emerald-900;
+    }
+
+    .toast--error {
+        @apply border border-rose-300/30 bg-rose-300/95 text-rose-900;
+    }
+}
+
+/* ==========================================================================
+   工具层
+   ========================================================================== */
+@layer utilities {
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .safe-t {
+        padding-top: env(safe-area-inset-top);
+    }
+}

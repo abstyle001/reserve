@@ -19,6 +19,13 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// 预约取号 / 放号大屏控制台（单页）
+Route::get('/reserve', function () {
+    return view('reserve.index', [
+        'queueOptions' => config('reserve.queue_options'),
+    ]);
+})->name('reserve.index');
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth'])->name('dashboard');

@@ -1,64 +1,133 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+# ReserveApp · 预约取号系统
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+![预约取号系统图](./doc/asset/reserve-sys.jpg)
 
-## About Laravel
+基于 Laravel 的轻量预约取号/放号系统，内置一个适合大厅大屏长期展示的**单页控制台**：超大号牌、取号/放号一键操作、队列状态实时轮询、本机号票管理。
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 功能特性
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **取号** `POST /api/reserve`：传入队列标识 `key`，返回 `{queue_key, batch_no, serial_no}` 三元组
+- **放号** `DELETE /api/reserve`：传入 `key + batch_no + serial_no`，释放一个号；全部放完后自动进入换批流程
+- **状态查询** `GET /api/reserve/state`：大屏每 5 秒轮询，展示当前号/已放号/剩余/批次
+- **批次状态机**：某批次 `active_count` 归零 → 标记 `need_reset` → 下次取号自动开启新批次（批次号单调递增）
+- **大屏控制台** `/reserve`：号牌大字随视口高度自适应、取号弹跳动画、号票网格 + 内部滚动、放大/全屏模式、断线退避重连、toast 反馈
+- **多队列**：顶栏下拉切换，队列列表由 `config/reserve.php` 或环境变量 `RESERVE_QUEUE_OPTIONS` 配置
+- 号票记录存于浏览器 localStorage（带版本号），刷新页面后仍可放号；界面只展示**当前批次**的号票
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## 技术栈
 
-## Learning Laravel
+| 层 | 技术 | 版本 |
+|---|---|---|
+| 后端框架 | Laravel | 8.75（PHP ^7.3 \| ^8.0，实际运行 PHP 8） |
+| 数据库 | SQLite（默认，可切换 MySQL） | — |
+| 前端模板 | Blade | — |
+| 前端交互 | Alpine.js | ^3.4 |
+| HTTP 客户端 | axios | ^0.21 |
+| 样式 | Tailwind CSS | ^3.1 |
+| 构建工具 | Laravel Mix（webpack 5） | ^6.0.6 |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+> 注意：项目根目录的 `vite.config.js` 是遗留文件（引用的 `laravel-vite-plugin` 未安装），**构建一律走 Mix**。
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## 快速开始
 
-## Laravel Sponsors
+### 环境要求
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+- PHP >= 7.3（推荐 8.x），扩展：`openssl`、`pdo_sqlite`（或 `pdo_mysql`）、`mbstring`、`tokenizer`、`xml`、`curl`
+- Composer 2.x
+- Node.js >= 16 + npm
 
-### Premium Partners
+### 安装
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+```bash
+# 1. 安装 PHP 依赖
+composer install
 
-## Contributing
+# 2. 准备环境变量
+cp .env.example .env
+php artisan key:generate
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 3. 配置数据库（默认 SQLite，零配置）
+#    .env 中：
+#    DB_CONNECTION=sqlite
+#    DB_DATABASE=/绝对路径/database/database.sqlite
+touch database/database.sqlite   # 文件已存在则跳过
 
-## Code of Conduct
+# 4. 建表
+php artisan migrate
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 5. 安装前端依赖并编译
+npm install
+npm run prod        # 生产构建；开发时用 npm run watch 热更新
 
-## Security Vulnerabilities
+# 6. 启动
+php artisan serve
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+访问：
+
+- 大屏控制台：<http://localhost:8000/reserve>
+- 探活接口：<http://localhost:8000/api/health>
+
+### 多队列配置
+
+`.env` 中用英文逗号分隔（默认只有一个「默认队列」）：
+
+```env
+RESERVE_QUEUE_OPTIONS="1号窗口,2号窗口,急诊"
+```
+
+## API 一览
+
+统一返回 `{code, message, data?}`：`code:0` 成功、`code:1` 业务失败、422 参数校验失败、500 异常。
+
+| 方法 | 路径 | 入参 | 说明 |
+|---|---|---|---|
+| POST | `/api/reserve` | `key`（队列标识，必填） | 取号，成功返回 `{queue_key, batch_no, serial_no}` |
+| DELETE | `/api/reserve` | `key`、`batch_no`、`serial_no` | 放号；`code:1` 表示号不存在或重复放号 |
+| GET | `/api/reserve/state` | `key`（query） | 查询队列状态：`batch_no / current_no / released_total / remaining / need_reset` |
+| GET | `/api/health` | — | 探活 |
+
+## 业务规则（批次状态机）
+
+1. 取号时在同一队列、当前未办结批次（`need_reset = 0`）上 `current_no + 1`，`active_count + 1`。
+2. 放号使 `active_count` 归零 → `need_reset = 1`，此后取号会开新批次（`batch_no` 取历史最大 + 1），号码重新从 1 开始。
+3. 号的唯一性由 `(queue_key, batch_no, serial_no)` 三元组保证。
+4. 状态查询接口刻意不加锁、不开事务，避免与高频率轮询互相阻塞。
+
+## 目录结构速览
+
+```
+app/Http/Controllers/Api/ReserveController.php   # 取号 / 放号 / 状态查询
+app/Models/Customer.php                          # 取号记录（customers 表）
+app/Models/SerialGenerator.php                   # 号池聚合（serial_generator 表）
+config/reserve.php                               # 队列选项配置
+resources/views/reserve/                         # 大屏 Blade 视图（index + partials）
+resources/js/reserve/                            # 前端分层：config / api / store / storage / app
+resources/css/app.css                            # Tailwind
+routes/api.php                                   # API 路由
+routes/web.php                                   # /reserve 页面路由
+tests/Feature/ReserveStateTest.php               # 状态接口测试
+```
+
+面向 AI 智能体与协作者的完整规范（编码约定、前端分层、接口契约、常见坑位）见项目根的 **[AGENTS.md](./AGENTS.md)**。
+
+## 测试
+
+```bash
+php artisan test                  # 或 ./vendor/bin/phpunit
+php artisan test --filter=ReserveStateTest
+```
+
+## 部署要点
+
+1. `composer install --optimize-autoloader --no-dev`
+2. `npm ci && npm run prod`
+3. `php artisan config:cache && php artisan route:cache`
+4. Web 服务器（Nginx/Apache）将域名指向 `public/` 目录
+5. 生产环境务必 `APP_ENV=production`、`APP_DEBUG=false`、配置好 `APP_KEY`
+
+数据库默认 SQLite，适合单机/小流量场景；如需 MySQL，修改 `.env` 的 `DB_*` 配置即可，迁移文件无需改动。
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT

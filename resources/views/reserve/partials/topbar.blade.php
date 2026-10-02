@@ -1,0 +1,43 @@
+{{--
+    毛玻璃顶栏：队列切换、连接状态、放大/全屏
+      放大按钮同时触发全屏（必须由用户手势调用 requestFullscreen）
+--}}
+<header class="glass safe-t flex shrink-0 items-center justify-between px-14 py-5 lg:px-20 3xl:px-28">
+
+    <div class="flex items-center gap-6 pt-4">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="text-2xl font-semibold tracking-tight text-white 3xl:text-3xl">
+            取号大屏
+        </span>
+
+        <div class="queue-picker ml-6">
+            <span class="queue-picker__label">队列</span>
+            <select class="queue-picker__input"
+                    x-model="$store.reserve.queueKey"
+                    @change="$store.reserve.selectQueue($store.reserve.queueKey)">
+                <template x-for="option in $store.reserve.queueOptions" :key="option">
+                    <option x-bind:value="option" x-text="option"></option>
+                </template>
+            </select>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-9">
+
+        <div class="flex items-center gap-3">
+            <span class="status-dot"
+                  :class="$store.reserve.online ? 'status-dot--online' : 'status-dot--offline'"
+                  aria-hidden="true"></span>
+            <span class="text-base text-white/55"
+                  x-text="$store.reserve.online ? '实时同步中' : '连接中断，重试中'">
+                实时同步中
+            </span>
+        </div>
+
+        <button type="button" class="btn-ghost" @click="$store.reserve.toggleZoom()">
+            <span x-text="$store.reserve.zoomed ? '缩 小' : '放 大'">放 大</span>
+        </button>
+
+    </div>
+
+</header>

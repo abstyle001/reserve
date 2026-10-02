@@ -10,6 +10,9 @@ window.axios = require('axios');
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
+// 接口统一挂在 /api 下（Laravel 的 api 路由前缀）
+window.axios.defaults.baseURL = '/api';
+
 /**
  * Echo exposes an expressive API for subscribing to channels and listening
  * for events that are broadcast by Laravel. Echo and event broadcasting
