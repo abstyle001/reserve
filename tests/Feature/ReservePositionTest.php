@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,6 +16,13 @@ use Tests\TestCase;
 class ReservePositionTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // position 本身公开只读，但测试里用取号/放号接口造数据，这两个写接口要求登录
+        $this->actingAs(User::factory()->create());
+    }
 
     public function test_key_and_serial_no_are_required()
     {

@@ -6524,7 +6524,17 @@ function handle(payload) {
   return payload.data;
 }
 function request(config) {
-  return window.axios(config).then(unwrap).then(handle);
+  return window.axios(config).then(unwrap).then(handle)["catch"](function (error) {
+    // session 过期或未登录：写接口返回 401；CSRF token 过期返回 419。
+    // 大屏是长驻页面，直接跳登录页让操作员重新登录（登录后按 intended 跳回大屏）。
+    var status = error && error.response ? error.response.status : 0;
+    if (status === 401 || status === 419) {
+      window.location.href = '/login';
+      // 返回一个永不 settle 的 promise，阻止 store 继续走失败分支弹 toast
+      return new Promise(function () {});
+    }
+    throw error;
+  });
 }
 
 /** 查询队列当前状态：GET /api/reserve/state?key=xxx */

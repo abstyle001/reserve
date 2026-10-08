@@ -9,13 +9,14 @@
 
 预约取号 / 放号系统。
 
-- **后端**：Laravel 8.75（PHP 8），SQLite 单文件数据库，无鉴权（内网/演示用途）。
+- **后端**：Laravel 8.75（PHP 8），SQLite 单文件数据库。
+- **鉴权**：Breeze session 登录（`/login`、`/register`、`/logout`）。大屏 `/reserve` 与取号/放号写接口需登录；移动端 `/m` 与只读查询接口公开（顾客扫码免登录）。
 - **前端**：Blade + Alpine.js + Tailwind CSS，走 laravel-mix（webpack）构建。
 - **核心场景**：大厅大屏展示取号结果、人工操作放号，前端 5 秒轮询队列状态。
 
 ### 非目标
 
-- 不做登录鉴权、不做报表统计、不做多租户隔离。
+- 不做报表统计、不做多租户隔离、不做 RBAC 多角色（登录即可用）。
 
 ---
 
@@ -101,9 +102,17 @@ tailwind.config.js             # content 已覆盖 resources/views/**
 
 ## 5. 接口契约（API）
 
-统一前缀 `/api`，均**无鉴权**（内网/演示）。
+统一前缀 `/api`。**只读接口公开**（state / position，手机端轮询要用）；**写接口（取号/放号）要求登录**。
 
-### `POST /api/reserve` — 取号
+> ⚠️ 写接口（`POST/DELETE /api/reserve`）定义在 `routes/web.php`（同名 URI），不在 `api.php`。
+> 原因：api 中间件组没有 session，写接口要登录态；直接给 api.php 路由叠 `['web','auth']`
+> 会踩 Laravel 中间件优先级排序的坑（`App\Http\Middleware\EncryptCookies` 是子类，不在
+> `$middlewarePriority` 名单里，StartSession 会被排到它前面，session 读不到解密后的
+> cookie，写接口永远 401）。web 组自带 session + CSRF，axios 自动从 XSRF cookie
+> 带 X-XSRF-TOKEN 头。
+> 未登录 → `401` JSON；CSRF 过期 → `419`；大屏前端 `reserve/api.js` 识别两者后跳 `/login`。
+
+### `POST /api/reserve` — 取号（需登录）
 
 请求体：`{ key: string }`（队列标识）
 成功：`code:0` + `data: { queue_key, batch_no, serial_no }`
@@ -236,7 +245,7 @@ touch database/database.sqlite
 php artisan migrate
 php artisan serve
 
-# 打开 http://localhost:8000/reserve
+# 打开 http://localhost:8000/reserve（未登录会跳 /login；首次先到 /register 注册一个账号）
 ```
 
 > Node 版本提示：laravel-mix 6 + webpack 5 在 Node 22 下偶发 `md4 hash` 报错，如遇可试 `NODE_OPTIONS=--openssl-legacy-provider npm run prod`。
@@ -250,9 +259,10 @@ php artisan serve
 
 ## 9. 测试与提交
 
-- Feature 测试放 `tests/Feature/`，命名 `XxxTest.php`，继承 `Tests\TestCase`，用 `RefreshDatabase`（sqlite 会重建表）。
+- Feature 测试放 `tests/Feature/`，命名 `XxxTest.php`，继承 `Tests\TestCase`，用 `RefreshDatabase`（sqlite `:memory:`，见 phpunit.xml，**不要改回文件库**，否则测试会清掉开发数据）。
+- 写接口（取号/放号）要求登录：测试里用 `$this->actingAs(User::factory()->create())`（参考两个现有测试的 `setUp`）；测试环境自动跳过 CSRF。
 - 运行：`./vendor/bin/phpunit --filter=ReserveStateTest`（`php artisan test` 亦可）。
-- 现有测试参考：`tests/Feature/ReserveStateTest.php`（覆盖取号→状态→放号→换批全链路）、`tests/Feature/ReservePositionTest.php`（移动端排队查询：前面人数 / 已办结 / 换批后旧号 not_found / 只读无副作用）。
+- 现有测试参考：`tests/Feature/ReserveStateTest.php`（覆盖取号→状态→放号→换批全链路）、`tests/Feature/ReservePositionTest.php`（移动端排队查询：前面人数 / 已办结 / 换批后旧号 not_found / 只读无副作用）、`tests/Feature/ReserveAuthTest.php`（页面级鉴权：大屏跳登录、/m 与只读接口公开）。
 - 提交信息：`feat: 取号放号大屏控制台`、`fix: 放号并发下批次计算错误` 这类 `type: 主题` 格式。
 
 ---
@@ -273,9 +283,11 @@ php artisan serve
 | 接口 500 报 `unexpected '=>'` | 运行时 PHP 7.3，用了 `fn()=>` 箭头函数 | 改回 `function ($x) { return ...; }` 传统闭包 |
 | 手机扫码打不开页面 | `php artisan serve` 默认只绑 127.0.0.1 | 启动加 `--host=0.0.0.0`；大屏也用局域网 IP 打开（二维码取 location.origin） |
 | 列表点选后高亮错乱 | `x-for` 里又开了 `x-data` | 改用 store `selectedId` |
-| 接口在浏览器 401 | 误把 API 路由放进 `web.php` 或请求没带 CSRF | API 走 `api.php`（无 CSRF），确认 baseURL=`/api` |
+| 接口在浏览器 401 | 只读接口正常但取号/放号 401 | 未登录或 session 过期，前端会自动跳 `/login`；注意写接口故意放在 `web.php`（见 §5 警告），别挪回 `api.php` |
+| 写接口挪回 api.php 后永远 401 | 叠 `['web','auth']` 触发中间件优先级排序：子类 `EncryptCookies` 不在 `$middlewarePriority`，StartSession 先于解密执行 | 保持写接口在 `web.php`；勿叠 web 组到 api 路由 |
+| 大屏突然跳登录页 | session/CSRF 过期（419）或未登录（401），`reserve/api.js` 自动跳转 | 重新登录即可；长挂大屏可调大 `.env` 的 `SESSION_LIFETIME` |
 | PHP 命令直接报 `invalid PHP_VERSION` | 用了 macOS 系统自带 php | 切到 brew php |
 
 ---
 
-*最后更新：2026-10-08（界面深色精修：极光背景网格、hero 面板描边、统计色条、号票高密度网格与删除线 done 态、按钮图标、手机端「轮到您了」高亮与状态徽章语义配色）*
+*最后更新：2026-10-08（大屏接入 Breeze 登录鉴权：/reserve 与取号/放号写接口需登录，写接口置于 web.php 走 session+CSRF，/m 与只读接口保持公开；前端 401/419 自动跳登录，顶栏加退出按钮）*

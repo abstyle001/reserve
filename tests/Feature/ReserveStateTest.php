@@ -4,12 +4,32 @@ namespace Tests\Feature;
 
 use App\Models\Customer;
 use App\Models\SerialGenerator;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReserveStateTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // 取号 / 放号写接口要求登录（大屏操作员），测试环境自动跳过 CSRF
+        $this->actingAs(User::factory()->create());
+    }
+
+    public function test_write_endpoints_require_authentication()
+    {
+        // 清掉 setUp 里的登录态，验证未登录场景
+        auth()->logout();
+        $this->postJson('/api/reserve', ['key' => 'counter-1'])->assertStatus(401);
+        $this->deleteJson('/api/reserve', [
+            'key' => 'counter-1',
+            'batch_no' => 1,
+            'serial_no' => 1,
+        ])->assertStatus(401);
+    }
 
     public function test_queue_key_is_required()
     {
