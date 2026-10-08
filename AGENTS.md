@@ -208,6 +208,8 @@ tailwind.config.js             # content 已覆盖 resources/views/**
 - 列表选中态用 store 的 `selectedId` 比较；不要在 `x-for` 项上再开 `x-data`，局部作用域会遮蔽 store。
 - `x-cloak` 必须配 CSS `[x-cloak]{display:none!important}`（已写入 `app.css`）。
 - 苹果风样式集中在 `resources/css/app.css` 的 `@layer components`；新增样式请遵循「底 / 玻璃 / 按钮 / 号牌 / 徽章」的命名空间。
+  现有变体类：`glass--hero`（号牌主面板蓝光描边）、`stat-card--blue/teal/amber/violet`（统计色条）、
+  `badge--green`、`m-hero--next` + `m-banner--next`（手机端「轮到您了」高亮）、`m-stat-card`、`qr-card`。
 - `queueOptions` 由后端 Blade 注入 `body[data-reserve-config]`；改队列列表请改路由/视图层，不要写死进 JS。
 
 ### 移动端排队查询（/m，只读）
@@ -276,4 +278,4 @@ php artisan serve
 
 ---
 
-*最后更新：2026-10-02（号票面板改为后端 tickets 驱动，修复多端不一致）*
+*最后更新：2026-10-08（界面深色精修：极光背景网格、hero 面板描边、统计色条、号票高密度网格与删除线 done 态、按钮图标、手机端「轮到您了」高亮与状态徽章语义配色）*

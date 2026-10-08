@@ -200,8 +200,18 @@ export function registerMobileStore(Alpine) {
         statusBadgeClass() {
             const status = this.result ? this.result.status : '';
             if (status === 'waiting') return 'badge--blue';
-            if (status === 'finished') return 'badge--gray';
+            if (status === 'finished') return 'badge--green';
+            if (status === 'not_found') return 'badge--gray';
             return 'badge--amber';
+        },
+
+        /** 前面 0 人 = 轮到我了，界面高亮提醒 */
+        isNext() {
+            return (
+                !!this.result &&
+                this.result.status === 'waiting' &&
+                Number(this.result.ahead_count) === 0
+            );
         },
 
         /** 状态副文案：告诉用户接下来做什么 */

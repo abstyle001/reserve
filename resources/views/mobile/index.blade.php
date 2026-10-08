@@ -95,22 +95,30 @@
                         >
                             <span class="m-label">前面还有</span>
                             <div class="flex items-baseline gap-2">
-                                <span class="m-hero" x-text="$store.mobile.result ? $store.mobile.result.ahead_count : '—'"></span>
+                                <span
+                                    class="m-hero"
+                                    :class="{ 'm-hero--next': $store.mobile.isNext() }"
+                                    x-text="$store.mobile.result ? $store.mobile.result.ahead_count : '—'"
+                                ></span>
                                 <span class="text-2xl text-white/60">人</span>
                             </div>
                         </div>
 
-                        <p class="text-base leading-relaxed text-white/55" x-text="$store.mobile.statusHint()"></p>
+                        <div class="m-banner--next" x-show="$store.mobile.isNext()">
+                            轮到您了，请前往窗口
+                        </div>
+
+                        <p class="text-base leading-relaxed text-white/55" x-show="!$store.mobile.isNext()" x-text="$store.mobile.statusHint()"></p>
 
                         <div class="grid w-full grid-cols-2 gap-4" x-show="$store.mobile.result">
-                            <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                            <div class="m-stat-card">
                                 <div class="m-label">本批已发到</div>
                                 <div
                                     class="mt-1 text-3xl font-bold tabular-nums text-white"
                                     x-text="$store.mobile.result ? $store.mobile.result.current_no : '—'"
                                 ></div>
                             </div>
-                            <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                            <div class="m-stat-card">
                                 <div class="m-label">剩余人数</div>
                                 <div
                                     class="mt-1 text-3xl font-bold tabular-nums text-white"

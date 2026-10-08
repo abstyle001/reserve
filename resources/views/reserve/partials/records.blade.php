@@ -10,7 +10,7 @@
 
     <div class="flex items-center justify-between">
         <h2 class="section-title">当前号票</h2>
-        <span class="text-base text-white/45" x-text="$store.reserve.currentTickets().length + ' 张'"></span>
+        <span class="badge badge--gray" x-text="$store.reserve.currentTickets().length + ' 张'"></span>
     </div>
 
     {{-- pb-3：最后一行号票与面板底边留出呼吸感；pr-3：给滚动条留边距 --}}
@@ -34,7 +34,7 @@
 
                 <span class="text-base"
                       :class="Number(ticket.is_finish) === 1 ? 'text-white/40' : 'text-white/70'"
-                      x-text="Number(ticket.is_finish) === 1 ? '已放号' : ($store.reserve.selectedSerial === ticket.serial_no ? '已选中' : '待叫号')">
+                      x-text="Number(ticket.is_finish) === 1 ? '✓ 已放号' : ($store.reserve.selectedSerial === ticket.serial_no ? '已选中' : '待叫号')">
                     待叫号
                 </span>
 

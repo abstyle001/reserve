@@ -3,7 +3,7 @@
       - 数字用 tabular-nums，避免 5s 轮询刷新时字宽变化导致抖动
       - 取号成功后 .ticket-pop 触发一次弹跳动画
 --}}
-<section class="glass ticket-shell">
+<section class="glass glass--hero ticket-shell">
 
     <div class="flex items-center justify-between">
         <span class="stat-label">当前号码</span>
@@ -19,8 +19,8 @@
         <div
             class="ticket-number"
             :class="{ 'ticket-number--empty': !$store.reserve.currentLatest(), 'ticket-pop': $store.reserve.flash }"
-            x-text="$store.reserve.currentLatest() ? $store.reserve.currentLatest().serial_no : '—'"
-        >—</div>
+            x-text="$store.reserve.currentLatest() ? $store.reserve.currentLatest().serial_no : '未取号'"
+        >未取号</div>
     </div>
 
     <div class="ticket-hint">
@@ -37,7 +37,7 @@
         <img
             :src="$store.reserve.qrUrl"
             alt="扫码查看排队进度"
-            class="h-28 w-28 rounded-2xl bg-white p-2"
+            class="qr-card h-28 w-28"
         >
         <div class="text-left">
             <p class="text-2xl font-medium text-white/85">

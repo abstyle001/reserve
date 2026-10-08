@@ -6,6 +6,8 @@ module.exports = {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
+        // store.js 里也引用组件类（如 badge--green），不扫描会被 purge 掉
+        './resources/js/**/*.js',
     ],
 
     theme: {

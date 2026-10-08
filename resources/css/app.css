@@ -18,27 +18,71 @@
 }
 
 /* ==========================================================================
-   组件层 —— 苹果官网风格：大圆角、大留白、毛玻璃、细腻高光边
+   组件层 —— 深色玻璃拟态：大圆角、毛玻璃、细腻高光边、克制的极光背景
    ========================================================================== */
 @layer components {
-    /* 深色底 + 顶部冷光 + 右下发散的紫色光晕 */
+    /* 深色底 + 三色极光：顶部冷蓝聚拢，右下紫色收敛，左下补淡青 */
     .screen {
         background:
-            radial-gradient(1200px 620px at 50% -10%, rgba(64, 120, 255, 0.28), transparent 60%),
-            radial-gradient(900px 520px at 100% 110%, rgba(120, 80, 255, 0.22), transparent 60%),
+            radial-gradient(1000px 560px at 50% -12%, rgba(64, 120, 255, 0.32), transparent 62%),
+            radial-gradient(820px 500px at 105% 108%, rgba(120, 80, 255, 0.16), transparent 60%),
+            radial-gradient(700px 460px at -8% 96%, rgba(45, 190, 190, 0.10), transparent 60%),
             linear-gradient(180deg, #101014 0%, #0b0b0e 55%, #000000 100%);
+    }
+
+    /* 极淡网格纹理，提升大屏质感；fixed 保证手机端滚动时不脱节；无动画避免轮询重绘开销 */
+    .screen::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+            repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 56px),
+            repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 56px);
     }
 
     /* 毛玻璃卡片 */
     .glass {
-        @apply rounded-[2.25rem] border border-white/15 bg-white/10 backdrop-blur-2xl;
+        @apply rounded-[2.25rem] border border-white/10 bg-white/[0.07] backdrop-blur-2xl;
         box-shadow:
-            0 24px 60px -24px rgba(0, 0, 0, 0.75),
-            inset 0 1px 0 rgba(255, 255, 255, 0.14);
+            0 28px 64px -24px rgba(0, 0, 0, 0.8),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
+    /* 主视觉面板（号牌）：淡蓝渐变描边 + 蓝光晕，从其他卡片中跳出来 */
+    .glass--hero {
+        border-color: rgba(96, 155, 255, 0.28);
+        box-shadow:
+            0 28px 64px -24px rgba(0, 0, 0, 0.8),
+            0 0 80px -32px rgba(64, 120, 255, 0.55),
+            inset 0 1px 0 rgba(160, 200, 255, 0.18);
+    }
+
+    /* 统计卡：左侧竖色条区分指标 */
     .stat-card {
-        @apply flex flex-col items-center justify-center gap-3 px-6 py-8;
+        @apply relative flex flex-col items-center justify-center gap-3 px-6 py-8;
+    }
+
+    .stat-card::before {
+        content: '';
+        @apply absolute left-0 top-1/2 h-10 w-[3px] -translate-y-1/2 rounded-full;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .stat-card--blue::before {
+        background: linear-gradient(180deg, #6db3ff, #0a6cf0);
+    }
+
+    .stat-card--teal::before {
+        background: linear-gradient(180deg, #5eead4, #0d9488);
+    }
+
+    .stat-card--amber::before {
+        background: linear-gradient(180deg, #fcd34d, #d97706);
+    }
+
+    .stat-card--violet::before {
+        background: linear-gradient(180deg, #c4b5fd, #7c3aed);
     }
 
     /* 品牌标识：蓝色渐变圆点 */
@@ -72,6 +116,10 @@
         background-size: 1.25rem;
     }
 
+    .queue-picker__input:focus {
+        box-shadow: 0 0 0 4px rgba(76, 155, 255, 0.15);
+    }
+
     .queue-picker__input option {
         @apply bg-zinc-900 text-white;
     }
@@ -93,7 +141,7 @@
 
     /* ---------- 按钮 ---------- */
     .btn-ghost {
-        @apply rounded-full border border-white/20 bg-white/10 px-8 py-3 text-lg font-medium text-white;
+        @apply inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-8 py-3 text-lg font-medium text-white;
         @apply backdrop-blur-xl transition hover:border-white/40 hover:bg-white/15;
     }
 
@@ -103,6 +151,18 @@
         box-shadow:
             0 22px 50px -18px rgba(0, 0, 0, 0.7),
             inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .btn-hero:hover:not([disabled]) {
+        filter: brightness(1.08);
+    }
+
+    .btn-hero:focus-visible {
+        outline: none;
+        box-shadow:
+            0 22px 50px -18px rgba(0, 0, 0, 0.7),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22),
+            0 0 0 4px rgba(255, 255, 255, 0.25);
     }
 
     .btn-hero:active:not([disabled]) {
@@ -118,9 +178,25 @@
         background: linear-gradient(180deg, #4c9bff 0%, #0a6cf0 100%);
     }
 
+    .btn-take:hover:not([disabled]) {
+        box-shadow:
+            0 26px 56px -18px rgba(10, 108, 240, 0.65),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
     .btn-release {
         @apply btn-hero;
         background: linear-gradient(180deg, #3ddc84 0%, #0a9f5c 100%);
+    }
+
+    .btn-release:hover:not([disabled]) {
+        box-shadow:
+            0 26px 56px -18px rgba(10, 159, 92, 0.65),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .btn-hero__icon {
+        @apply h-9 w-9 shrink-0;
     }
 
     .btn-spinner {
@@ -150,14 +226,16 @@
         animation: ticketPop 0.55s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    /* 尚未取号时的占位态：去掉文字渐变，弱化显示，避免 em-dash 变成突兀的白条 */
+    /* 尚未取号时的占位态：显示「未取号」文案而非 em-dash 白条 */
     .ticket-number--empty {
-        font-size: clamp(5rem, 22vh, 12rem);
+        font-size: clamp(3rem, 13vh, 7rem);
+        letter-spacing: 0.08em;
+        font-weight: 600;
         background: none;
         -webkit-background-clip: initial;
         background-clip: initial;
-        color: rgba(255, 255, 255, 0.28);
-        -webkit-text-fill-color: rgba(255, 255, 255, 0.28);
+        color: rgba(255, 255, 255, 0.22);
+        -webkit-text-fill-color: rgba(255, 255, 255, 0.22);
     }
 
     @keyframes ticketPop {
@@ -178,9 +256,18 @@
         @apply flex justify-center pb-2 text-center;
     }
 
+    /* ---------- 扫码二维码 ---------- */
+    .qr-card {
+        @apply rounded-2xl bg-white p-2;
+        box-shadow:
+            0 14px 34px -12px rgba(0, 0, 0, 0.7),
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            0 0 28px -6px rgba(96, 155, 255, 0.35);
+    }
+
     /* ---------- 统计数字 ---------- */
     .stat-label {
-        @apply text-base uppercase tracking-[0.25em] text-white/55;
+        @apply whitespace-nowrap text-base uppercase tracking-[0.15em] text-white/55;
     }
 
     .stat-value {
@@ -200,6 +287,10 @@
         @apply bg-apple-blue/20 text-apple-blue;
     }
 
+    .badge--green {
+        @apply bg-emerald-400/20 text-emerald-300;
+    }
+
     .badge--amber {
         @apply bg-amber-400/20 text-amber-300;
     }
@@ -212,7 +303,7 @@
     /* 网格布局：卡片定宽，塞不下时在面板内部纵向滚动（不挤压其他区域） */
     .record-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
         align-content: start;
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
@@ -232,27 +323,34 @@
     }
 
     .ticket-chip {
-        @apply flex flex-col items-center justify-center gap-2 rounded-3xl px-4 py-6;
-        @apply border border-white/15 bg-white/[0.07] text-center transition-all duration-200;
+        @apply flex flex-col items-center justify-center gap-2 rounded-3xl border-2 px-4 py-5;
+        @apply border-white/15 bg-white/[0.07] text-center transition-all duration-200;
     }
 
     .ticket-chip:hover {
         @apply border-white/30 bg-white/15;
+        transform: translateY(-2px);
     }
 
     .ticket-chip__no {
-        @apply text-5xl font-bold tabular-nums text-white 3xl:text-6xl;
+        @apply text-4xl font-bold tabular-nums text-white 3xl:text-5xl;
     }
 
     .ticket-chip--active {
-        @apply border-transparent;
-        background: linear-gradient(180deg, rgba(76, 155, 255, 0.55), rgba(10, 108, 240, 0.45));
-        box-shadow: 0 16px 40px -16px rgba(10, 108, 240, 0.85);
-        transform: translateY(-6px);
+        @apply border-apple-blue/70;
+        background: linear-gradient(180deg, rgba(76, 155, 255, 0.45), rgba(10, 108, 240, 0.35));
+        box-shadow: 0 14px 34px -14px rgba(10, 108, 240, 0.75);
+        transform: translateY(-4px);
     }
 
     .ticket-chip--done {
         @apply opacity-45;
+    }
+
+    .ticket-chip--done .ticket-chip__no {
+        text-decoration: line-through;
+        text-decoration-thickness: 3px;
+        text-decoration-color: rgba(255, 255, 255, 0.5);
     }
 
     /* ---------- 提示浮层 ---------- */
@@ -270,13 +368,17 @@
 
     /* ---------- 移动端排队查询（/m） ---------- */
     .m-label {
-        @apply text-sm uppercase tracking-[0.25em] text-white/55;
+        @apply text-sm uppercase tracking-[0.2em] text-white/55;
     }
 
     .m-input {
         @apply w-full rounded-2xl border border-white/20 bg-white/10 px-6 py-4;
         @apply text-2xl font-medium tabular-nums text-white outline-none backdrop-blur-xl transition;
         @apply placeholder:text-white/30 focus:border-white/45;
+    }
+
+    .m-input:focus {
+        box-shadow: 0 0 0 4px rgba(76, 155, 255, 0.15);
     }
 
     .m-btn-primary {
@@ -296,6 +398,12 @@
         @apply hover:border-white/40 hover:bg-white/15;
     }
 
+    /* 结果页统计小卡：与大屏玻璃语言统一 */
+    .m-stat-card {
+        @apply rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
     /* 「前面还有 N 人」的主视觉大数字：等宽数字防轮询抖动 */
     .m-hero {
         font-variant-numeric: tabular-nums;
@@ -307,6 +415,32 @@
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
+    }
+
+    /* 前面 0 人：绿色渐变 + 轻微脉冲，「轮到您了」的高亮时刻 */
+    .m-hero--next {
+        background: linear-gradient(180deg, #a7f3d0 10%, #34d399 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        animation: mHeroPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes mHeroPulse {
+        0%,
+        100% {
+            transform: scale(1);
+            filter: drop-shadow(0 0 18px rgba(52, 211, 153, 0.35));
+        }
+        50% {
+            transform: scale(1.04);
+            filter: drop-shadow(0 0 30px rgba(52, 211, 153, 0.6));
+        }
+    }
+
+    .m-banner--next {
+        @apply w-full rounded-2xl border border-emerald-300/30 bg-emerald-400/15 px-6 py-4;
+        @apply text-xl font-semibold text-emerald-300;
+        box-shadow: 0 0 32px -10px rgba(52, 211, 153, 0.4);
     }
 }
 
