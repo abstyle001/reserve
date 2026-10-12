@@ -19,6 +19,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// C 端旅行首页（静态原型页：酒店预订搜索 + 酒店推荐）
+Route::get('/fly', function () {
+    return view('fly.home');
+})->name('fly.home');
+
 // 预约取号 / 放号大屏控制台（单页），登录后可用
 Route::get('/reserve', function () {
     return view('reserve.index', [
@@ -48,6 +53,13 @@ Route::delete('/api/reserve', [\App\Http\Controllers\Api\ReserveController::clas
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth'])->name('dashboard');
+
+// 酒店管理（酒店 / 房型 / 房间），全部要求登录
+Route::middleware('auth')->group(function () {
+    Route::resource('hotels', \App\Http\Controllers\HotelController::class)->except(['show']);
+    Route::resource('hotels.room-types', \App\Http\Controllers\RoomTypeController::class)->except(['show']);
+    Route::resource('hotels.rooms', \App\Http\Controllers\RoomController::class)->except(['show']);
+});
 
 Route::get('/upload', function () {
     return '<form method="post" action="/upload" enctype="multipart/form-data">

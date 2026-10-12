@@ -442,6 +442,674 @@
         @apply text-xl font-semibold text-emerald-300;
         box-shadow: 0 0 32px -10px rgba(52, 211, 153, 0.4);
     }
+
+    /* ==========================================================================
+       酒店管理后台（/hotels，独立轻量后台：浅灰底 + 白色面板，不走 Breeze 布局，
+       也不用大屏的毛玻璃 —— 后台以清爽、低重绘开销为先）
+       ========================================================================== */
+    .admin-shell {
+        @apply flex h-screen w-screen overflow-hidden;
+        background-color: #f5f6f8;
+    }
+
+    /* 白色面板：后台通用容器（表格 / 表单） */
+    .admin-panel {
+        @apply rounded-lg border border-gray-200 bg-white shadow-sm;
+    }
+
+    .admin-sidebar {
+        @apply fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 -translate-x-full flex-col;
+        @apply border-r border-gray-200 bg-white transition-transform duration-200;
+        @apply lg:static lg:translate-x-0;
+    }
+
+    .admin-brand {
+        @apply flex items-center gap-3 border-b border-gray-200 px-6 py-5;
+    }
+
+    .admin-brand .brand-mark {
+        @apply h-9 w-9 rounded-lg;
+    }
+
+    .admin-side-section {
+        @apply px-6 pb-2 pt-6 text-xs font-medium uppercase tracking-[0.2em] text-gray-400;
+    }
+
+    .admin-nav {
+        @apply flex flex-col gap-1 px-4;
+    }
+
+    .admin-nav-item {
+        @apply flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition;
+        @apply hover:bg-gray-100 hover:text-gray-900;
+    }
+
+    .admin-nav-item--active {
+        background-color: rgba(10, 132, 255, 0.1);
+        color: #0a84ff;
+    }
+
+    .admin-nav-item svg {
+        @apply h-4 w-4 shrink-0;
+    }
+
+    .admin-hotel-link {
+        @apply flex items-center justify-between gap-2 rounded-lg px-4 py-2 text-sm text-gray-500 transition;
+        @apply hover:bg-gray-100 hover:text-gray-900;
+    }
+
+    .admin-side-footer {
+        @apply mt-auto space-y-1 border-t border-gray-200 px-4 py-4;
+    }
+
+    .admin-main {
+        @apply flex min-w-0 flex-1 flex-col;
+    }
+
+    .admin-mobilebar {
+        @apply flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden;
+    }
+
+    .admin-page {
+        @apply mx-auto w-full max-w-6xl px-5 py-8 lg:px-10;
+    }
+
+    .admin-page-header {
+        @apply mb-6 flex flex-wrap items-end justify-between gap-4;
+    }
+
+    .admin-title {
+        @apply text-2xl font-semibold tracking-tight text-gray-900;
+    }
+
+    .admin-subtitle {
+        @apply mt-1 text-sm text-gray-500;
+    }
+
+    /* 顶部统计小卡 */
+    .admin-stat {
+        @apply flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-5 py-4 shadow-sm;
+    }
+
+    .admin-stat__value {
+        @apply text-2xl font-bold tabular-nums text-gray-900;
+    }
+
+    .admin-stat__label {
+        @apply text-xs text-gray-500;
+    }
+
+    /* 酒店上下文页签（房型 / 房间 / 酒店设置） */
+    .admin-tabs {
+        @apply mb-5 flex gap-2;
+    }
+
+    .admin-tab {
+        @apply rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-600 transition;
+        @apply hover:border-gray-300 hover:text-gray-900;
+    }
+
+    .admin-tab--active {
+        border-color: rgba(10, 132, 255, 0.4);
+        background-color: rgba(10, 132, 255, 0.08);
+        color: #0a84ff;
+    }
+
+    /* 表格 */
+    .admin-table {
+        @apply min-w-full text-sm;
+    }
+
+    .admin-table thead th {
+        @apply border-b border-gray-200 bg-gray-50 px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500;
+    }
+
+    .admin-table tbody td {
+        @apply border-b border-gray-100 px-5 py-3.5 text-gray-700;
+    }
+
+    .admin-table tbody tr:last-child td {
+        @apply border-b-0;
+    }
+
+    .admin-table tbody tr {
+        @apply transition;
+    }
+
+    .admin-table tbody tr:hover {
+        @apply bg-gray-50;
+    }
+
+    .admin-action {
+        @apply text-sm transition;
+        color: #0a84ff;
+    }
+
+    .admin-action:hover {
+        color: #0066cc;
+    }
+
+    .admin-action--danger {
+        @apply text-red-500 hover:text-red-700;
+    }
+
+    .admin-empty {
+        @apply px-5 py-14 text-center text-sm text-gray-400;
+    }
+
+    /* 表单 */
+    .admin-label {
+        @apply mb-1.5 block text-sm font-medium text-gray-700;
+    }
+
+    .admin-input {
+        @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition;
+        @apply placeholder:text-gray-400;
+    }
+
+    .admin-input:focus {
+        border-color: #0a84ff;
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+    }
+
+    select.admin-input {
+        @apply appearance-none pr-10;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.5 7.5 10 12l4.5-4.5z' clip-rule='evenodd'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.8rem center;
+        background-size: 1.1rem;
+    }
+
+    .admin-error {
+        @apply mt-1.5 text-sm text-red-600;
+    }
+
+    /* 按钮 */
+    .admin-btn-primary {
+        @apply inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition;
+        background-color: #0a84ff;
+    }
+
+    .admin-btn-primary:hover {
+        background-color: #0074e8;
+    }
+
+    .admin-btn-ghost {
+        @apply inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition;
+        @apply hover:border-gray-400 hover:bg-gray-50;
+    }
+
+    /* 小号徽章（表格内用），后台浅色场景覆盖深色大屏的变体配色 */
+    .badge--sm {
+        @apply px-2.5 py-0.5 text-xs;
+    }
+
+    .admin-shell .badge--green {
+        @apply bg-emerald-50 text-emerald-700;
+    }
+
+    .admin-shell .badge--blue {
+        @apply bg-blue-50 text-blue-700;
+    }
+
+    .admin-shell .badge--amber {
+        @apply bg-amber-50 text-amber-700;
+    }
+
+    .admin-shell .badge--gray {
+        @apply bg-gray-100 text-gray-500;
+    }
+
+    /* 操作反馈 */
+    .admin-flash {
+        @apply mb-5 rounded-lg border px-4 py-3 text-sm;
+    }
+
+    .admin-flash--success {
+        @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+    }
+
+    .admin-flash--error {
+        @apply border-red-200 bg-red-50 text-red-600;
+    }
+
+    /* 分页 */
+    .admin-pager {
+        @apply mt-5 flex items-center justify-between gap-4;
+    }
+
+    .admin-pager__info {
+        @apply text-sm text-gray-500;
+    }
+
+    /* ==========================================================================
+       C 端旅行首页（/fly）
+       浅色消费级风格：白面板 + 大圆角 + 蓝色渐变主色，与深色大屏 / 浅灰后台区分。
+       页面本身零 JS，交互（tab 切换 / 日期选择）后续用 Alpine 补。
+       ========================================================================== */
+    .fly-body {
+        @apply min-h-screen bg-[#f5f7fb] text-gray-900 antialiased;
+    }
+
+    .fly-container {
+        @apply mx-auto w-full max-w-6xl px-5 lg:px-8;
+    }
+
+    /* ---------- 顶部导航 ---------- */
+    .fly-topbar {
+        @apply sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur-xl;
+    }
+
+    .fly-brand-mark {
+        @apply flex h-9 w-9 items-center justify-center rounded-xl text-white;
+        background: linear-gradient(145deg, #52a6ff, #0a6cf0 60%, #5e5ce6);
+        box-shadow: 0 8px 20px -6px rgba(10, 108, 240, 0.55);
+    }
+
+    .fly-brand-mark svg {
+        @apply h-5 w-5;
+    }
+
+    .fly-brand-name {
+        @apply block text-lg font-bold leading-tight tracking-tight text-gray-900;
+    }
+
+    .fly-brand-slogan {
+        @apply hidden text-xs leading-tight text-gray-400 sm:block;
+    }
+
+    .fly-nav-link {
+        @apply rounded-full px-4 py-2 text-sm font-medium text-gray-600 transition;
+        @apply hover:bg-gray-100 hover:text-gray-900;
+    }
+
+    .fly-nav-link--active {
+        @apply bg-apple-blue/10 text-apple-blue;
+    }
+
+    .fly-btn-primary {
+        @apply inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold text-white transition;
+        background: linear-gradient(180deg, #4c9bff, #0a6cf0);
+        box-shadow: 0 10px 24px -10px rgba(10, 108, 240, 0.7);
+    }
+
+    .fly-btn-primary:hover {
+        filter: brightness(1.06);
+    }
+
+    .fly-btn-outline {
+        @apply inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition;
+        @apply hover:border-apple-blue/40 hover:text-apple-blue;
+    }
+
+    /* ---------- Hero：左侧分类 + 搜索面板 ---------- */
+    .fly-hero {
+        background:
+            radial-gradient(900px 420px at 18% -10%, rgba(10, 132, 255, 0.14), transparent 60%),
+            radial-gradient(700px 380px at 85% -20%, rgba(94, 92, 230, 0.10), transparent 60%),
+            linear-gradient(180deg, #eaf2ff 0%, #f5f7fb 100%);
+    }
+
+    .fly-panel {
+        @apply grid overflow-hidden rounded-3xl border border-white/70 bg-white;
+        box-shadow: 0 32px 80px -32px rgba(15, 23, 42, 0.28);
+    }
+
+    /* 左侧业务分类栏 */
+    .fly-sidebar {
+        @apply hidden flex-col gap-1 border-r border-gray-100 bg-gray-50/70 p-4 lg:flex;
+    }
+
+    .fly-side-title {
+        @apply px-4 pb-2 pt-1 text-xs font-medium uppercase tracking-[0.2em] text-gray-400;
+    }
+
+    .fly-side-item {
+        @apply relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-gray-600 transition;
+        @apply hover:bg-white hover:text-apple-blue hover:shadow-sm;
+    }
+
+    .fly-side-item--active {
+        @apply bg-white text-apple-blue shadow-sm;
+    }
+
+    /* 激活项左侧蓝色竖条 */
+    .fly-side-item--active::before {
+        content: '';
+        @apply absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full;
+        background: linear-gradient(180deg, #52a6ff, #0a6cf0);
+    }
+
+    .fly-side-item svg {
+        @apply h-5 w-5 shrink-0;
+    }
+
+    .fly-side-coupon {
+        @apply mt-4 rounded-xl border border-dashed border-orange-200 bg-orange-50/60 p-4;
+    }
+
+    /* ---------- 搜索区 ---------- */
+    .fly-search {
+        @apply p-5 lg:p-8;
+    }
+
+    .fly-tabs {
+        @apply flex flex-wrap gap-6 border-b border-gray-100;
+    }
+
+    .fly-tab {
+        @apply relative px-1 pb-3 text-lg font-semibold text-gray-400 transition hover:text-gray-700;
+    }
+
+    .fly-tab--active {
+        @apply text-apple-blue;
+    }
+
+    /* 激活 tab 底部渐变下划线 */
+    .fly-tab--active::after {
+        content: '';
+        @apply absolute -bottom-px left-0 h-[3px] w-full rounded-full;
+        background: linear-gradient(90deg, #4c9bff, #0a6cf0);
+    }
+
+    .fly-form {
+        @apply mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[1.05fr_1.5fr_1.25fr_auto];
+    }
+
+    .fly-field {
+        @apply flex h-14 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 transition;
+        @apply hover:border-gray-300 focus-within:border-apple-blue/60;
+    }
+
+    .fly-field:focus-within {
+        box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.12);
+    }
+
+    .fly-field__icon {
+        @apply h-5 w-5 shrink-0 text-gray-400;
+    }
+
+    .fly-field input {
+        @apply w-full bg-transparent text-base font-medium text-gray-900 outline-none;
+        @apply placeholder:font-normal placeholder:text-gray-400;
+    }
+
+    .fly-field__label {
+        @apply block text-xs leading-tight text-gray-400;
+    }
+
+    .fly-field__value {
+        @apply block text-base font-medium leading-tight text-gray-900;
+    }
+
+    .fly-dates__divider {
+        @apply mx-3 h-8 w-px shrink-0 bg-gray-200;
+    }
+
+    .fly-nights {
+        @apply ml-auto shrink-0 rounded-full bg-apple-blue/10 px-2.5 py-1 text-xs font-medium text-apple-blue;
+    }
+
+    .fly-btn-search {
+        @apply inline-flex h-14 items-center justify-center gap-2 rounded-xl px-8 text-base font-semibold text-white transition;
+        background: linear-gradient(180deg, #4c9bff, #0a6cf0);
+        box-shadow: 0 16px 32px -12px rgba(10, 108, 240, 0.65);
+    }
+
+    .fly-btn-search:hover {
+        filter: brightness(1.07);
+    }
+
+    .fly-btn-search:active {
+        transform: scale(0.98);
+    }
+
+    .fly-quickrow {
+        @apply mt-4 flex flex-wrap items-center gap-2;
+    }
+
+    .fly-chip {
+        @apply rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 transition;
+        @apply hover:border-apple-blue/40 hover:text-apple-blue;
+    }
+
+    .fly-chip--hot {
+        @apply border-orange-200 text-orange-500 hover:border-orange-300 hover:text-orange-600;
+    }
+
+    .fly-filter-btn {
+        @apply inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 transition;
+        @apply hover:border-apple-blue/50 hover:text-apple-blue;
+    }
+
+    /* ---------- 服务保障条 ---------- */
+    .fly-promise {
+        @apply flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-sm;
+    }
+
+    .fly-promise__item {
+        @apply flex items-center gap-2.5 text-sm text-gray-600;
+    }
+
+    .fly-promise__icon {
+        @apply flex h-9 w-9 items-center justify-center rounded-full bg-apple-blue/10 text-apple-blue;
+    }
+
+    .fly-promise__icon svg {
+        @apply h-5 w-5;
+    }
+
+    /* ---------- 区块标题 ---------- */
+    .fly-section {
+        @apply py-8 lg:py-10;
+    }
+
+    .fly-section-head {
+        @apply mb-6 flex items-end justify-between gap-4;
+    }
+
+    .fly-section-title {
+        @apply text-2xl font-bold tracking-tight text-gray-900 lg:text-[1.75rem];
+    }
+
+    .fly-section-sub {
+        @apply mt-1 text-sm text-gray-400;
+    }
+
+    .fly-more {
+        @apply inline-flex shrink-0 items-center gap-1 text-sm font-medium text-apple-blue transition hover:gap-2;
+    }
+
+    /* ---------- 酒店推荐卡片 ---------- */
+    .fly-hotel-grid {
+        @apply grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    /* 卡片根元素需在 HTML 上挂 group 类，供 name 的 group-hover 使用 */
+    .fly-hotel-card {
+        @apply block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300;
+        @apply hover:-translate-y-1 hover:shadow-[0_24px_48px_-16px_rgba(15,23,42,0.22)];
+    }
+
+    .fly-hotel-card__media {
+        @apply relative h-44 overflow-hidden transition duration-300;
+    }
+
+    /* 图片位右上角一道柔光，让渐变占位不那么平 */
+    .fly-hotel-card__media::before {
+        content: '';
+        @apply pointer-events-none absolute right-[-18%] top-[-30%] h-[120%] w-[55%] rounded-full;
+        background: rgba(255, 255, 255, 0.16);
+    }
+
+    .fly-hotel-card__badge {
+        @apply absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 text-xs font-semibold text-white;
+        background: linear-gradient(135deg, #ff7a45, #ff4d4f);
+        box-shadow: 0 8px 20px -8px rgba(255, 77, 79, 0.7);
+    }
+
+    .fly-hotel-card__price {
+        @apply absolute bottom-3 left-3 z-10 flex items-baseline gap-0.5 rounded-full bg-white/95 px-3 py-1.5 shadow-sm;
+    }
+
+    .fly-hotel-card__price b {
+        @apply text-xl font-bold text-orange-500;
+    }
+
+    .fly-hotel-card__price span {
+        @apply text-xs text-gray-400;
+    }
+
+    .fly-hotel-card__body {
+        @apply p-5;
+    }
+
+    .fly-hotel-name {
+        @apply text-base font-bold text-gray-900 transition group-hover:text-apple-blue;
+    }
+
+    .fly-stars {
+        @apply flex shrink-0 items-center gap-0.5 text-amber-400;
+    }
+
+    .fly-stars svg {
+        @apply h-3.5 w-3.5 fill-current;
+    }
+
+    .fly-hotel-loc {
+        @apply mt-2 flex items-center gap-1.5 text-xs text-gray-400;
+    }
+
+    .fly-hotel-loc svg {
+        @apply h-3.5 w-3.5 shrink-0;
+    }
+
+    .fly-hotel-tags {
+        @apply mt-3 flex flex-wrap gap-1.5;
+    }
+
+    .fly-tag {
+        @apply rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500;
+    }
+
+    .fly-tag--blue {
+        @apply bg-apple-blue/10 text-apple-blue;
+    }
+
+    .fly-tag--green {
+        @apply bg-emerald-50 text-emerald-600;
+    }
+
+    .fly-hotel-foot {
+        @apply mt-4 flex items-center justify-between gap-2 border-t border-gray-50 pt-4;
+    }
+
+    .fly-score {
+        @apply rounded-md bg-apple-blue px-1.5 py-0.5 text-xs font-bold text-white;
+    }
+
+    .fly-score-txt {
+        @apply ml-1.5 text-xs text-gray-400;
+    }
+
+    .fly-price {
+        @apply text-lg font-bold text-orange-500;
+    }
+
+    .fly-price small {
+        @apply text-xs font-normal text-gray-400;
+    }
+
+    /* 图片位渐变占位（接真实图片后替换为 background-image） */
+    .fly-grad-1 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #a9c6ff 0%, #5e8ef7 100%);
+    }
+
+    .fly-grad-2 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #ffd3a8 0%, #ff9350 100%);
+    }
+
+    .fly-grad-3 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #b5ead7 0%, #45b597 100%);
+    }
+
+    .fly-grad-4 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #d8c8ff 0%, #8b7bf0 100%);
+    }
+
+    .fly-grad-5 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #ffc8d4 0%, #f86a8a 100%);
+    }
+
+    .fly-grad-6 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #b8e3ff 0%, #4aa8f0 100%);
+    }
+
+    .fly-grad-7 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #f3e3c3 0%, #cf9d5f 100%);
+    }
+
+    .fly-grad-8 {
+        background:
+            radial-gradient(120px 90px at 78% 22%, rgba(255, 255, 255, 0.35), transparent 70%),
+            linear-gradient(135deg, #bff0d8 0%, #2fbf8f 100%);
+    }
+
+    /* ---------- 热门目的地 ---------- */
+    .fly-city-grid {
+        @apply grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8;
+    }
+
+    .fly-city-card {
+        @apply relative flex h-24 flex-col justify-end overflow-hidden rounded-xl p-3 transition duration-300;
+        @apply hover:-translate-y-1 hover:shadow-lg;
+    }
+
+    /* 底部压暗保证白字可读 */
+    .fly-city-card::after {
+        content: '';
+        @apply pointer-events-none absolute inset-0;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0) 35%, rgba(15, 23, 42, 0.45) 100%);
+    }
+
+    .fly-city-card > * {
+        @apply relative z-10;
+    }
+
+    .fly-city-card__name {
+        @apply text-sm font-bold text-white;
+    }
+
+    .fly-city-card__sub {
+        @apply text-[11px] text-white/80;
+    }
+
+    /* ---------- 页脚 ---------- */
+    .fly-footer-title {
+        @apply mb-3 text-sm font-semibold text-gray-700;
+    }
+
+    .fly-footer-links a {
+        @apply text-xs leading-6 text-gray-400 transition hover:text-apple-blue;
+    }
+
+    .fly-footer-bottom {
+        @apply border-t border-gray-100 py-5 text-center text-xs text-gray-400;
+    }
 }
 
 /* ==========================================================================
