@@ -784,8 +784,17 @@
         @apply h-5 w-5 shrink-0;
     }
 
-    .fly-side-coupon {
-        @apply mt-4 rounded-xl border border-dashed border-orange-200 bg-orange-50/60 p-4;
+    /* 搜索区底部营销条（原来在左侧分类栏底部，会把面板右下撑出一片空白） */
+    .fly-promo {
+        @apply mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-orange-200 bg-orange-50/60 px-4 py-3;
+    }
+
+    .fly-promo__badge {
+        @apply rounded-full bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white;
+    }
+
+    .fly-promo__soon {
+        @apply ml-auto text-xs text-gray-400;
     }
 
     /* ---------- 搜索区 ---------- */
@@ -812,13 +821,39 @@
         background: linear-gradient(90deg, #4c9bff, #0a6cf0);
     }
 
+    /* 网格：md 起两行两列（城市+日期 / 关键词+按钮），xl 起把按钮提成跨两行的竖条 CTA。
+       每条轨道都显式 minmax(0,…)：fr 轨的自动最小宽度是内容的 min-content，
+       而 input 的默认 min-content 有 ~180px，四个框挤一行时轨道被撑爆，
+       最窄的 auto 轨（按钮）就被压成一列竖排字，日期框也会溢出圆角外。
+       日期轨给到 1.45fr/1.6fr 是因为一格 "10/26/2026" + 日历图标实测要 ~130px。 */
     .fly-form {
-        @apply mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[1.05fr_1.5fr_1.25fr_auto];
+        @apply mt-6 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_9rem];
+    }
+
+    .fly-form__city {
+        @apply xl:col-start-1 xl:row-start-1;
+    }
+
+    .fly-form__dates {
+        @apply xl:col-start-2 xl:row-start-1;
+    }
+
+    .fly-form__q {
+        @apply xl:col-span-2 xl:col-start-1 xl:row-start-2;
+    }
+
+    .fly-form__go {
+        @apply xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:h-auto xl:px-3;
     }
 
     .fly-field {
-        @apply flex h-14 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 transition;
+        @apply flex min-h-[3.5rem] min-w-0 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 transition;
         @apply hover:border-gray-300 focus-within:border-apple-blue/60;
+    }
+
+    /* 日期框叠成两行时给点上下留白（单行时 min-h-[3.5rem] 仍然是实际高度） */
+    .fly-field--dates {
+        @apply py-2;
     }
 
     .fly-field:focus-within {
@@ -829,9 +864,29 @@
         @apply h-5 w-5 shrink-0 text-gray-400;
     }
 
+    /* @tailwindcss/forms 给所有 input 上了白底+边框+内边距，落在 fly-field 里就是
+       「框中框」，日期框尤其明显。这里把盒子外观全部交还给 .fly-field。 */
     .fly-field input {
-        @apply w-full bg-transparent text-base font-medium text-gray-900 outline-none;
+        @apply w-full min-w-0 rounded-none border-0 bg-transparent p-0 shadow-none outline-none;
+        @apply text-base font-medium leading-6 text-gray-900;
         @apply placeholder:font-normal placeholder:text-gray-400;
+        @apply focus:shadow-none;
+    }
+
+    .fly-field input[type='date'] {
+        @apply tabular-nums;
+    }
+
+    /* 日历小图标：调暗到与 fly-field__icon 同一灰度，hover 才提亮 */
+    .fly-field input[type='date']::-webkit-calendar-picker-indicator {
+        opacity: 0.45;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+    }
+
+    .fly-field input[type='date']:hover::-webkit-calendar-picker-indicator,
+    .fly-field input[type='date']:focus::-webkit-calendar-picker-indicator {
+        opacity: 0.85;
     }
 
     .fly-field__label {
@@ -842,16 +897,29 @@
         @apply block text-base font-medium leading-tight text-gray-900;
     }
 
-    .fly-dates__divider {
-        @apply mx-3 h-8 w-px shrink-0 bg-gray-200;
+    /* 日期两格：min-w-[7.5rem] 是 "2026-10-22" + 日历图标不再被裁的下限；
+       轨道实在塞不下就 flex-wrap 叠成两行、由 .fly-field--dates 长高，
+       而不是溢出圆角外（那正是原来「日历撕裂」的样子）。 */
+    .fly-dates {
+        @apply flex min-w-0 flex-1 flex-wrap items-center gap-3;
+    }
+
+    .fly-dates__cell {
+        @apply w-full min-w-0 sm:w-auto sm:min-w-[7.5rem] sm:flex-1;
     }
 
     .fly-nights {
-        @apply ml-auto shrink-0 rounded-full bg-apple-blue/10 px-2.5 py-1 text-xs font-medium text-apple-blue;
+        @apply ml-auto shrink-0 rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] font-medium tabular-nums text-apple-blue;
     }
 
+    /* 搜索框里的「N 晚」窄屏先让位给日期，详情页顶部那个仍然显示 */
+    .fly-field--dates .fly-nights {
+        @apply hidden sm:ml-auto sm:inline-block;
+    }
+
+    /* whitespace-nowrap：轨道被压窄时「搜索酒店」不再一字一行 */
     .fly-btn-search {
-        @apply inline-flex h-14 items-center justify-center gap-2 rounded-xl px-8 text-base font-semibold text-white transition;
+        @apply inline-flex h-14 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-6 text-base font-semibold text-white transition;
         background: linear-gradient(180deg, #4c9bff, #0a6cf0);
         box-shadow: 0 16px 32px -12px rgba(10, 108, 240, 0.65);
     }
@@ -880,6 +948,15 @@
     .fly-filter-btn {
         @apply inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 transition;
         @apply hover:border-apple-blue/50 hover:text-apple-blue;
+    }
+
+    /* 当前生效的筛选 chip（SSR 按 query 判定，Alpine 局部刷新后同一口径） */
+    .fly-chip--active {
+        @apply border-apple-blue bg-apple-blue/10 font-medium text-apple-blue;
+    }
+
+    .fly-filter-btn--active {
+        @apply border-solid border-apple-blue bg-apple-blue/10 font-medium text-apple-blue;
     }
 
     /* ---------- 服务保障条 ---------- */
@@ -1096,6 +1173,140 @@
 
     .fly-city-card__sub {
         @apply text-[11px] text-white/80;
+    }
+
+    /* ---------- 搜索分页 ---------- */
+    .fly-pager {
+        @apply mt-8 flex flex-wrap items-center justify-center gap-2;
+    }
+
+    .fly-pager__btn {
+        @apply rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs text-gray-600 transition;
+        @apply hover:border-apple-blue/40 hover:text-apple-blue;
+    }
+
+    .fly-pager__num {
+        @apply inline-flex h-8 min-w-[2rem] items-center justify-center rounded-full px-2 text-xs tabular-nums text-gray-500 transition;
+        @apply hover:bg-gray-100 hover:text-gray-800;
+    }
+
+    .fly-pager__num--active {
+        @apply bg-apple-blue font-semibold text-white hover:bg-apple-blue hover:text-white;
+    }
+
+    .fly-pager__gap {
+        @apply px-1 text-xs text-gray-300;
+    }
+
+    .fly-pager__total {
+        @apply ml-2 text-xs text-gray-400;
+    }
+
+    /* ---------- 空态 ---------- */
+    .fly-empty {
+        @apply flex flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center;
+    }
+
+    .fly-empty__icon {
+        @apply mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-50 text-gray-300;
+    }
+
+    .fly-empty__icon svg {
+        @apply h-6 w-6;
+    }
+
+    .fly-empty__title {
+        @apply text-base font-semibold text-gray-700;
+    }
+
+    .fly-empty__sub {
+        @apply mt-1.5 max-w-md text-sm text-gray-400;
+    }
+
+    /* ---------- 详情页房型行 ---------- */
+    .fly-room-row {
+        @apply flex flex-wrap items-center gap-4 border-b border-gray-50 px-4 py-5 transition last:border-0;
+        @apply hover:bg-gray-50/60 sm:flex-nowrap;
+    }
+
+    .fly-room-row__thumb {
+        @apply h-20 w-24 shrink-0 overflow-hidden rounded-xl;
+    }
+
+    .fly-room-row__remain {
+        @apply text-xs tabular-nums;
+    }
+
+    /* ---------- 面包屑 ---------- */
+    .fly-crumb {
+        @apply flex flex-wrap items-center gap-2 py-4 text-xs text-gray-400;
+    }
+
+    .fly-crumb a {
+        @apply transition hover:text-apple-blue;
+    }
+
+    /* ---------- 下单页 / 订单页 ---------- */
+    .fly-flash {
+        @apply mb-5 flex items-start gap-2 rounded-2xl border px-5 py-4 text-sm;
+    }
+
+    .fly-flash--ok {
+        @apply border-green-200 bg-green-50 text-green-700;
+    }
+
+    .fly-flash--err {
+        @apply border-red-200 bg-red-50 text-red-700;
+    }
+
+    .fly-card {
+        @apply rounded-3xl border border-gray-100 bg-white p-6 shadow-sm;
+    }
+
+    .fly-label {
+        @apply mb-1.5 block text-sm font-medium text-gray-600;
+    }
+
+    .fly-input {
+        @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition;
+        @apply hover:border-gray-300 focus:border-apple-blue/60;
+    }
+
+    .fly-input--error {
+        @apply border-red-300;
+    }
+
+    .fly-field-error {
+        @apply mt-1.5 text-xs text-red-600;
+    }
+
+    /* 订单摘要行：左标签右值，值用等宽数字防跳位 */
+    .fly-sum-row {
+        @apply flex items-start justify-between gap-4 border-b border-gray-50 py-2.5 text-sm last:border-0;
+    }
+
+    .fly-sum-row dt {
+        @apply shrink-0 text-gray-400;
+    }
+
+    .fly-sum-row dd {
+        @apply text-right font-medium text-gray-800 tabular-nums;
+    }
+
+    .fly-status {
+        @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+    }
+
+    .fly-status--booked {
+        @apply bg-apple-blue/10 text-apple-blue;
+    }
+
+    .fly-status--cancelled {
+        @apply bg-gray-100 text-gray-500;
+    }
+
+    .fly-status--stay {
+        @apply bg-green-50 text-green-600;
     }
 
     /* ---------- 页脚 ---------- */

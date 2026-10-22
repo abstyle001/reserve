@@ -15,9 +15,16 @@ class RouteServiceProvider extends ServiceProvider
      *
      * This is used by Laravel authentication to redirect users after login.
      *
+     * 落地页是云途 C 端首页 /fly（站内的「首页」全部指向 route('fly.home')）。
+     * 不要改成 '/' —— 那是 Laravel 原版欢迎页，只有文档外链。
+     *
+     * 注意：这只影响「直接访问 /login 登录」的落点。未登录时被 guest 中间件挡到的
+     * 场景不受这里管辖 —— intended() 会把人送回原本要去的地方（例如 /reserve 大屏），
+     * 操作员先看大屏再登录，仍然回到大屏。
+     *
      * @var string
      */
-    public const HOME = '/';
+    public const HOME = '/fly';
 
     /**
      * The controller namespace for the application.

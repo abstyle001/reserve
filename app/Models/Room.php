@@ -44,6 +44,23 @@ class Room extends Model
         return $this->belongsTo(RoomType::class);
     }
 
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * 可售房间：仅排除「停用」。
+     *
+     * 空闲/在住/打扫中都属于物理上能卖的房 —— status 表达的是这间房「此刻」的
+     * 客房状态，而未来某天的占用由 bookings 的日期区间决定，两者不能混为一谈。
+     * 这也是本系统需要日期维度订单表、而不能只靠 rooms.status 算库存的原因。
+     */
+    public function scopeSellable($query)
+    {
+        return $query->where('status', '!=', self::STATUS_DISABLED);
+    }
+
     public function getStatusLabelAttribute()
     {
         return isset(self::$statusLabels[$this->status])

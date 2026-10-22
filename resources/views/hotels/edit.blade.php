@@ -11,7 +11,7 @@
     </div>
 
     <div class="admin-panel max-w-3xl p-8">
-        <form method="POST" action="{{ route('hotels.update', $hotel) }}">
+        <form method="POST" action="{{ route('hotels.update', $hotel) }}" enctype="multipart/form-data">
             @method('PUT')
             @include('hotels._form')
         </form>

@@ -40,8 +40,11 @@
             <table class="admin-table">
                 <thead>
                     <tr>
+                        <th>图片</th>
                         <th>名称</th>
+                        <th>城市</th>
                         <th>星级</th>
+                        <th>评分</th>
                         <th>电话</th>
                         <th>地址</th>
                         <th>状态</th>
@@ -53,8 +56,27 @@
                 <tbody>
                     @forelse ($hotels as $hotel)
                         <tr>
+                            <td>
+                                @if (!empty($hotel->img_urls))
+                                    <img src="{{ $hotel->img_urls[0] }}" alt="{{ $hotel->name }}"
+                                         class="h-12 w-12 rounded-lg border border-gray-200 object-cover">
+                                @else
+                                    <span class="text-gray-300">—</span>
+                                @endif
+                            </td>
                             <td class="font-medium text-gray-900">{{ $hotel->name }}</td>
+                            <td>{{ $hotel->city ?: '—' }}</td>
                             <td class="whitespace-nowrap text-amber-500">{{ $hotel->star_level ? str_repeat('★', $hotel->star_level) : '—' }}</td>
+                            <td class="tabular-nums whitespace-nowrap">
+                                @if ($hotel->score !== null)
+                                    <span class="font-medium text-amber-500">{{ number_format($hotel->score, 1) }}</span>
+                                    @if ($hotel->score_text)
+                                        <span class="text-xs text-gray-400">{{ $hotel->score_text }}</span>
+                                    @endif
+                                @else
+                                    <span class="text-gray-300">—</span>
+                                @endif
+                            </td>
                             <td>{{ $hotel->phone ?: '—' }}</td>
                             <td>{{ $hotel->address ?: '—' }}</td>
                             <td>
@@ -82,7 +104,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="admin-empty">还没有酒店，点击右上角「新增酒店」创建</td>
+                            <td colspan="11" class="admin-empty">还没有酒店，点击右上角「新增酒店」创建</td>
                         </tr>
                     @endforelse
                 </tbody>

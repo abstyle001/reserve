@@ -10,6 +10,10 @@ module.exports = {
         './resources/js/**/*.js',
     ],
 
+    // .fly-grad-1~8 是图片位渐变占位，在 Blade 里只能写成 fly-grad-{{ $card['grad_index'] }}，
+    // purge 扫不到字面量会被整段删掉（表现是卡片底色全变白）。新增占位类必须同步这里。
+    safelist: [{ pattern: /^fly-grad-\d$/ }],
+
     theme: {
         extend: {
             fontFamily: {

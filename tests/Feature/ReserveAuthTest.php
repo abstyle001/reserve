@@ -34,8 +34,27 @@ class ReserveAuthTest extends TestCase
             ->assertJsonPath('code', 0);
     }
 
-    public function test_home_redirect_lands_on_reserve_screen()
+    public function test_login_lands_on_the_travel_homepage()
     {
-        $this->assertSame('/reserve', \App\Providers\RouteServiceProvider::HOME);
+        $this->assertSame('/fly', \App\Providers\RouteServiceProvider::HOME);
+
+        $user = User::factory()->create();
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertRedirect('/fly');
+    }
+
+    /**
+     * HOME 只管「直接登录」的落点：被 guest 中间件拦下的人登录后要回原本要去的地方，
+     * 否则操作员每次都得从首页再点一次大屏。
+     */
+    public function test_login_returns_to_the_screen_that_bounced_the_operator()
+    {
+        $user = User::factory()->create();
+
+        $this->get('/reserve')->assertRedirect('/login');
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertRedirect('/reserve');
     }
 }

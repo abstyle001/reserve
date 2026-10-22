@@ -20,7 +20,7 @@
 | 层 | 技术 | 版本 |
 |---|---|---|
 | 后端框架 | Laravel | 8.75（PHP ^7.3 \| ^8.0，实际运行 PHP 8） |
-| 数据库 | SQLite（默认，可切换 MySQL） | — |
+| 数据库 | MySQL（默认，见 `.env.example`）/ SQLite（可选，测试强制用它） | — |
 | 前端模板 | Blade | — |
 | 前端交互 | Alpine.js | ^3.4 |
 | HTTP 客户端 | axios | ^0.21 |
@@ -47,11 +47,12 @@ composer install
 cp .env.example .env
 php artisan key:generate
 
-# 3. 配置数据库（默认 SQLite，零配置）
-#    .env 中：
+# 3. 配置数据库（默认 MySQL，.env.example 已给出连接参数）
+#    .env 中：DB_CONNECTION=mysql + DB_HOST/DB_PORT/DB_DATABASE/DB_USERNAME
+#    想用零配置的 SQLite，改成：
 #    DB_CONNECTION=sqlite
 #    DB_DATABASE=/绝对路径/database/database.sqlite
-touch database/database.sqlite   # 文件已存在则跳过
+touch database/database.sqlite   # 仅 sqlite 分支需要；文件已存在则跳过
 
 # 4. 建表
 php artisan migrate
@@ -127,7 +128,8 @@ php artisan test --filter=ReserveStateTest
 4. Web 服务器（Nginx/Apache）将域名指向 `public/` 目录
 5. 生产环境务必 `APP_ENV=production`、`APP_DEBUG=false`、配置好 `APP_KEY`
 
-数据库默认 SQLite，适合单机/小流量场景；如需 MySQL，修改 `.env` 的 `DB_*` 配置即可，迁移文件无需改动。
+数据库默认 MySQL（`.env.example`）；也可切到 SQLite 单机跑，改 `.env` 的 `DB_*` 即可，迁移文件无需改动。
+注意 PHPUnit 强制使用 sqlite `:memory:`（见 `phpunit.xml`），所以所有 SQL 都要两种方言通用。
 
 ## License
 

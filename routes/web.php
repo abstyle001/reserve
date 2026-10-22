@@ -19,10 +19,24 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// C 端旅行首页（静态原型页：酒店预订搜索 + 酒店推荐）
-Route::get('/fly', function () {
-    return view('fly.home');
-})->name('fly.home');
+// 云途旅行 C 端（/fly）：酒店预订搜索 + 酒店推荐 + 详情。
+// 数据来自 HotelSearchService（SSR 首屏）与 /api/fly/*（局部刷新），两边同一口径。
+// ⚠️ 只用 web 组、不加 auth：C 端顾客不登录。写接口（下单/取消）同样放这里，
+//    因为 api 组没有 session；只读 GET 一律只在 api.php 注册一次，别在这儿重复。
+// 不用 Route::prefix('fly') + get('/')：那样注册出来的 URI 是 "fly/"，匹配不到 /fly。
+Route::get('/fly', [\App\Http\Controllers\FlyHomeController::class, 'index'])->name('fly.home');
+Route::get('/fly/hotels/{hotel}', [\App\Http\Controllers\FlyHotelController::class, 'show'])->name('fly.hotels.show');
+
+// 下单页 + 写接口：POST /fly/bookings 走 web 组拿 session + CSRF，但同样不加 auth —— 顾客不登录。
+// 校验失败/房量不足一律 back() 回表单带中文提示，不返回 JSON。
+Route::get('/fly/hotels/{hotel}/book', [\App\Http\Controllers\FlyBookingController::class, 'create'])->name('fly.book');
+Route::post('/fly/bookings', [\App\Http\Controllers\FlyBookingController::class, 'store'])->name('fly.bookings.store');
+
+// 订单：/fly/orders 手机号查单 + /fly/orders/{booking} 详情（兼任下单结果页）。
+// 取消是 POST（不是 DELETE）：与后台全站表单风格一致，也让浏览器原生表单能直接提交。
+Route::get('/fly/orders', [\App\Http\Controllers\FlyOrderController::class, 'index'])->name('fly.orders');
+Route::get('/fly/orders/{booking}', [\App\Http\Controllers\FlyOrderController::class, 'show'])->name('fly.orders.show');
+Route::post('/fly/orders/{booking}/cancel', [\App\Http\Controllers\FlyOrderController::class, 'cancel'])->name('fly.orders.cancel');
 
 // 预约取号 / 放号大屏控制台（单页），登录后可用
 Route::get('/reserve', function () {
@@ -59,6 +73,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('hotels', \App\Http\Controllers\HotelController::class)->except(['show']);
     Route::resource('hotels.room-types', \App\Http\Controllers\RoomTypeController::class)->except(['show']);
     Route::resource('hotels.rooms', \App\Http\Controllers\RoomController::class)->except(['show']);
+
+    // C 端预订订单：只读列表 + 取消。不用 Route::resource —— 这里没有增删改，
+    // resource 会注册出 7 条指向不存在方法的路由，route:list 里全是坑。
+    Route::get('bookings', [\App\Http\Controllers\BookingAdminController::class, 'index'])->name('bookings.index');
+    Route::get('bookings/{booking}', [\App\Http\Controllers\BookingAdminController::class, 'show'])->name('bookings.show');
+    Route::post('bookings/{booking}/cancel', [\App\Http\Controllers\BookingAdminController::class, 'cancel'])->name('bookings.cancel');
 });
 
 Route::get('/upload', function () {

@@ -41,6 +41,11 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'options' => [
+                // PDO::ATTR_TIMEOUT 在 sqlite 下就是 busy_timeout（秒）：并发写时
+                // 先等 5 秒再抛 SQLITE_BUSY，而不是立刻失败，避免下单撞上轮询的写锁。
+                PDO::ATTR_TIMEOUT => 5,
+            ],
         ],
 
         'mysql' => [

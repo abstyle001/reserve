@@ -16,4 +16,6 @@ mix.js('resources/js/app.js', 'public/js')
     .js('resources/js/reserve/app.js', 'public/js/reserve')
     // 移动端排队查询独立入口（Blade 里用 mix('js/mobile/app.js') 引入）
     .js('resources/js/mobile/app.js', 'public/js/mobile')
+    // 云途旅行 C 端独立入口（渐进增强：SSR 首屏 + Alpine 局部刷新）
+    .js('resources/js/fly/app.js', 'public/js/fly')
     .postCss('resources/css/app.css', 'public/css');
