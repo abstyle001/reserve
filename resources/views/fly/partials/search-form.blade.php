@@ -59,14 +59,27 @@
                :value="$store.fly.filters.q">
     </div>
 
-    {{-- 搜索按钮：请求在飞时锁住，避免连点排队出一串响应 --}}
-    <button type="submit" class="fly-btn-search fly-form__go" :disabled="$store.fly.loading">
-        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.3-4.3"/>
-        </svg>
-        搜索酒店
-    </button>
+    {{-- 动作区：搜索 + 重置同列。xl 时贴在第 3 列与左侧两行字段等高（搜索上、重置下），
+         md 以下占满整行两枚并排。重置是真链接兜底（关 JS 整页跳回 /fly 默认态），
+         开 JS 时局部刷新，href 与 resetFilters() 行为一致 --}}
+    <div class="fly-form__actions">
+        <button type="submit" class="fly-btn-search flex-1" :disabled="$store.fly.loading">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+            搜索酒店
+        </button>
+        <a href="{{ route('fly.home') }}" class="fly-btn-reset flex-1"
+           :href="$store.fly.resetUrl()"
+           @click.prevent="$store.fly.resetFilters()">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+            </svg>
+            重置搜索
+        </a>
+    </div>
 
     {{-- 排序不进表单网格，由下方筛选 chip 以链接方式改 --}}
     <input type="hidden" name="sort" value="{{ $filters['sort'] }}" :value="$store.fly.filters.sort">

@@ -283,6 +283,19 @@ export function registerFlyStore(Alpine) {
             return this.patch({ city: '', q: '' });
         },
 
+        /** 重置按钮：清空全部条件回到默认搜索（今晚入住 / 明天离店 / 推荐排序） */
+        resetFilters() {
+            const base = this.today || fromDayMs(Date.now());
+
+            return this.patch({
+                city: '',
+                q: '',
+                sort: 'recommended',
+                check_in: base,
+                check_out: addDays(base, 1),
+            });
+        },
+
         applyTab(name, label) {
             if (name === 'hotel') {
                 this.tab = 'hotel';
@@ -581,6 +594,19 @@ export function registerFlyStore(Alpine) {
             params.page = 1;
 
             return this.buildUrl(params);
+        },
+
+        /** 重置按钮的 href：与 resetFilters() 同一语义（清空条件 + 回到今晚一晚） */
+        resetUrl() {
+            const base = this.today || this.filters.check_in;
+
+            return this.buildUrl({
+                city: '',
+                q: '',
+                sort: 'recommended',
+                check_in: base,
+                check_out: addDays(base, 1),
+            });
         },
 
         /** 空态里的两个「放宽一档」链接：只去掉一个条件，另一个留着 */

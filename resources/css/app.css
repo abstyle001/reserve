@@ -842,8 +842,11 @@
         @apply xl:col-span-2 xl:col-start-1 xl:row-start-2;
     }
 
-    .fly-form__go {
-        @apply xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:h-auto xl:px-3;
+    /* 动作区：搜索 + 重置。md 以下占满整行两枚并排；xl 时固定在第 3 列
+       与左侧两行字段等高（搜索上、重置下），不再单独占一行留出空白 */
+    .fly-form__actions {
+        @apply flex gap-3 md:col-span-2 md:col-start-1 md:row-start-3;
+        @apply xl:col-span-1 xl:col-start-3 xl:row-span-2 xl:row-start-1 xl:flex-col;
     }
 
     .fly-field {
@@ -865,12 +868,14 @@
     }
 
     /* @tailwindcss/forms 给所有 input 上了白底+边框+内边距，落在 fly-field 里就是
-       「框中框」，日期框尤其明显。这里把盒子外观全部交还给 .fly-field。 */
+       「框中框」，日期框尤其明显。这里把盒子外观全部交还给 .fly-field。
+       focus 态必须 ring-0：forms 插件的蓝色 ring 走 --tw-ring-shadow 变量，
+       shadow-none 清不掉它，会从 focus-within 光晕里再浮出一圈默认蓝框。 */
     .fly-field input {
         @apply w-full min-w-0 rounded-none border-0 bg-transparent p-0 shadow-none outline-none;
         @apply text-base font-medium leading-6 text-gray-900;
         @apply placeholder:font-normal placeholder:text-gray-400;
-        @apply focus:shadow-none;
+        @apply focus:shadow-none focus:ring-0;
     }
 
     .fly-field input[type='date'] {
@@ -922,6 +927,12 @@
         @apply inline-flex h-14 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-6 text-base font-semibold text-white transition;
         background: linear-gradient(180deg, #4c9bff, #0a6cf0);
         box-shadow: 0 16px 32px -12px rgba(10, 108, 240, 0.65);
+    }
+
+    /* 重置按钮：次级外观，与搜索按钮同区（见 .fly-form__actions） */
+    .fly-btn-reset {
+        @apply inline-flex h-14 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-gray-200 bg-white px-6 text-base font-medium text-gray-500 transition;
+        @apply hover:border-gray-300 hover:text-gray-700;
     }
 
     .fly-btn-search:hover {
