@@ -9,6 +9,7 @@
     （对照模板 fly/partials/room-row-live.blade.php）；概览区的单价、剩余间数、
     面包屑与「看同城」链接的 :href 跟着 store 的日期走。
     点「预订」仍然是整页跳转 —— 写操作不进 JS。
+    头图为多图轮播（fly/partials/hotel-gallery.blade.php），无 JS 时只显示首图完整 cover。
 --}}
 @extends('fly.layout')
 
@@ -52,13 +53,9 @@
     {{-- ===================== 酒店概览 ===================== --}}
     <section class="fly-container pb-2">
         {{-- 容器不能 overflow-hidden：日期日历要从概览卡里溢出来（裁掉就选不到下半月），
-             圆角改由封面图自己承担 --}}
-        <div class="grid grid-cols-1 rounded-3xl border border-gray-100 bg-white shadow-sm lg:grid-cols-[22rem_1fr]">
-            <div class="relative h-48 rounded-t-[calc(1.5rem-1px)] fly-grad-{{ $card['grad_index'] }} lg:h-full lg:rounded-l-[calc(1.5rem-1px)] lg:rounded-tr-none"@if ($card['cover_url']) style="background-image:url('{{ $card['cover_url'] }}')"@endif>
-                @if ($card['badge'])
-                    <span class="fly-hotel-card__badge">{{ $card['badge'] }}</span>
-                @endif
-            </div>
+             圆角改由封面图自己承担（图区自身 overflow-hidden 是叶子节点，不影响日历） --}}
+        <div class="grid grid-cols-1 rounded-3xl border border-gray-100 bg-white shadow-sm lg:grid-cols-[30rem_1fr]">
+            @include('fly.partials.hotel-gallery')
 
             <div class="p-6 lg:p-8">
                 <div class="flex flex-wrap items-start justify-between gap-4">
