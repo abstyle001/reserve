@@ -31,9 +31,12 @@ class FlyHomeController extends Controller
         // 写成 '/api/fly/hotels' 会被拼成 '/api/api/fly/hotels'。
         // 只列 store 真正会打的接口：/api/fly/cities 与 /api/fly/bookings 是对外只读契约
         // （城市清单已随本响应给出，查单页是 SSR），不需要出现在页面配置里。
+        // cities 上限是 city_limit（8，首页城市卡的口径）；badge 放宽上限，
+        // 供城市面板给更多城市标注「N 家」，两者互不影响。
         $flyConfig = [
             'search'  => $result,
             'cities'  => $cities,
+            'badges'  => $this->search->cities(100),
             'api'     => [
                 'hotels' => '/fly/hotels',
             ],

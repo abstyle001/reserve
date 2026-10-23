@@ -19,6 +19,7 @@
 import { SEARCH_DEBOUNCE_MS, MAX_NIGHTS, MAX_DAYS_AHEAD, MAX_KEYWORD_LENGTH } from './config';
 import * as api from './api';
 import { loadSearch, saveSearch } from './storage';
+import { CHINA_CITIES } from './china-cities';
 
 const DAY_MS = 86400000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -114,6 +115,11 @@ export function registerFlyStore(Alpine) {
         calPicking: 'in', // in 正在选入住 / out 正在选离店
         calHover: '', // 选离店时悬停预览的日期
 
+        // ---------- 城市面板（同日历：JS 关闭时整块不参与，自由文本输入兜底） ----------
+        cityOpen: false,
+        cityQuery: '',
+        allCities: CHINA_CITIES,
+
         // ============================================================ 水合与初始化
 
         /** 必须在 Alpine.start() 之前调用：让 :value / x-text 绑定从第一帧起就是真实数据 */
@@ -122,7 +128,10 @@ export function registerFlyStore(Alpine) {
 
             this.api = config.api || {};
 
-            if (Array.isArray(config.cities)) {
+            // badges 是放宽上限的角标数据（FlyHomeController 下发），cities 只够首页城市卡
+            if (Array.isArray(config.badges)) {
+                this.cities = config.badges;
+            } else if (Array.isArray(config.cities)) {
                 this.cities = config.cities;
             }
 
@@ -262,6 +271,77 @@ export function registerFlyStore(Alpine) {
 
         selectCity(city) {
             return this.patch({ city: this.filters.city === city ? '' : city });
+        },
+
+        // ============================================================ 城市面板
+
+        openCityPanel() {
+            this.cityQuery = '';
+            this.cityOpen = true;
+        },
+
+        closeCityPanel() {
+            this.cityOpen = false;
+        },
+
+        /** 城市面板按钮的选中态：类名写完整字面量，拼接写法会被 Tailwind 内容扫描清除 */
+        cityItemClass(city) {
+            return this.filters.city === city
+                ? 'fly-city-item fly-city-item--active'
+                : 'fly-city-item';
+        },
+
+        /** 按市名或省名过滤，仍按省分组返回；空省剔除 */
+        cityGroups() {
+            const query = String(this.cityQuery || '').trim().toLowerCase();
+
+            if (query === '') {
+                return this.allCities;
+            }
+
+            const groups = [];
+
+            for (let i = 0; i < this.allCities.length; i++) {
+                const group = this.allCities[i];
+
+                if (group.province.toLowerCase().indexOf(query) !== -1) {
+                    groups.push({ province: group.province, cities: group.cities });
+
+                    continue;
+                }
+
+                const cities = [];
+
+                for (let j = 0; j < group.cities.length; j++) {
+                    if (group.cities[j].toLowerCase().indexOf(query) !== -1) {
+                        cities.push(group.cities[j]);
+                    }
+                }
+
+                if (cities.length > 0) {
+                    groups.push({ province: group.province, cities: cities });
+                }
+            }
+
+            return groups;
+        },
+
+        /** 该城市在售酒店数（来自 SSR 水合的 cities），无数据返回 0，模板不渲染角标 */
+        cityBadge(city) {
+            for (let i = 0; i < this.cities.length; i++) {
+                if (this.cities[i].city === city) {
+                    return Number(this.cities[i].hotel_count) || 0;
+                }
+            }
+
+            return 0;
+        },
+
+        /** 面板里点城市：与城市卡同一 toggle 语义（再点一次清除），选完关面板并搜索 */
+        pickCity(city) {
+            this.closeCityPanel();
+
+            return this.selectCity(city);
         },
 
         searchKeyword(keyword) {

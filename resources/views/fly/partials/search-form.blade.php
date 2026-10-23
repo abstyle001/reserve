@@ -15,18 +15,27 @@
 <form class="fly-form" action="{{ route('fly.home') }}" method="get"
       @submit.prevent="$store.fly.submitSearch($el)"
       @change="$store.fly.onFormChange($el)">
-    {{-- 目的地城市 --}}
-    <div class="fly-field fly-form__city">
+    {{-- 目的地城市：与日期字段同构 —— JS 关闭时是自由文本 input（原生 GET 可用）；
+         Alpine 启动后输入框隐藏（x-show="false" 只在 JS 开启时生效），换成点击弹出的
+         城市面板（city-panel），选中值仍写回同一个 name 供 readForm 读取 --}}
+    <div class="fly-field fly-form__city relative"
+         @click.outside="$store.fly.closeCityPanel()"
+         @keydown.escape.window="$store.fly.closeCityPanel()">
         <svg class="fly-field__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
             <circle cx="12" cy="10" r="3"/>
         </svg>
         <div class="min-w-0 flex-1">
             <label class="fly-field__label" for="fly-city">城市</label>
-            <input id="fly-city" type="text" name="city" list="fly-city-options" autocomplete="off"
+            <input id="fly-city" type="text" name="city" autocomplete="off"
                    placeholder="选择或输入城市" value="{{ $filters['city'] }}"
-                   :value="$store.fly.filters.city">
+                   :value="$store.fly.filters.city" x-show="false">
+            <button type="button" class="fly-field__value text-left" x-cloak
+                    @click="$store.fly.cityOpen ? $store.fly.closeCityPanel() : $store.fly.openCityPanel()"
+                    x-text="$store.fly.filters.city || '选择城市'"></button>
         </div>
+
+        @include('fly.partials.city-panel')
     </div>
 
     {{-- 入住 / 离店日期：JS 关闭时是原生 <input type="date">（不放字段图标，原生控件自带
@@ -95,12 +104,4 @@
 
     {{-- 排序不进表单网格，由下方筛选 chip 以链接方式改 --}}
     <input type="hidden" name="sort" value="{{ $filters['sort'] }}" :value="$store.fly.filters.sort">
-
-    @if (!empty($cities))
-        <datalist id="fly-city-options">
-            @foreach ($cities as $option)
-                <option value="{{ $option['city'] }}">{{ $option['hotel_count'] }} 家酒店</option>
-            @endforeach
-        </datalist>
-    @endif
 </form>

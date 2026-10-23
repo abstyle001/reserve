@@ -919,6 +919,67 @@
         @apply ml-auto shrink-0 rounded-full bg-apple-blue/10 px-2 py-1 text-[11px] font-medium tabular-nums text-apple-blue;
     }
 
+    /* ---------- 城市面板（fly/partials/city-panel.blade.php） ----------
+       全国城市按省分组，搜索框在顶部、列表在滚动区里。省名吸顶方便长列表定位。
+       注意 .fly-city-grid 已被首页「热门目的地」占用，面板网格用 __grid 前缀区分。 */
+    .fly-city-panel {
+        @apply absolute left-0 top-full z-30 mt-2 w-[min(28rem,calc(100vw-2.5rem))] rounded-2xl border border-gray-100 bg-white shadow-xl;
+    }
+
+    .fly-city-panel__search {
+        @apply border-b border-gray-100 p-3;
+    }
+
+    .fly-city-panel__search input {
+        @apply w-full rounded-lg border-0 bg-gray-50 px-3 py-2 text-sm shadow-none outline-none;
+        @apply placeholder:text-gray-400 focus:shadow-none focus:ring-0;
+    }
+
+    .fly-city-panel__scroll {
+        @apply max-h-80 overflow-y-auto p-3;
+    }
+
+    .fly-city-province {
+        @apply mt-2 first:mt-0;
+    }
+
+    .fly-city-province__title {
+        @apply sticky top-0 z-10 bg-white py-1 text-[11px] font-medium text-gray-400;
+    }
+
+    .fly-city-panel__grid {
+        @apply mt-1 grid grid-cols-3 gap-1 sm:grid-cols-4;
+    }
+
+    .fly-city-item {
+        @apply flex flex-col items-center rounded-lg px-1 py-1.5 text-center transition;
+        @apply hover:bg-gray-100;
+    }
+
+    .fly-city-item--active {
+        @apply bg-apple-blue/10;
+    }
+
+    .fly-city-item__name {
+        @apply text-[13px] font-medium leading-5 text-gray-800;
+    }
+
+    .fly-city-item--active .fly-city-item__name {
+        @apply text-apple-blue;
+    }
+
+    .fly-city-item__badge {
+        @apply text-[10px] leading-4 tabular-nums text-gray-400;
+    }
+
+    .fly-city-item--active .fly-city-item__badge {
+        @apply text-apple-blue/70;
+    }
+
+    .fly-city-panel__empty {
+        @apply py-6 text-center text-sm text-gray-400;
+    }
+
     /* ---------- 自绘日历（fly/partials/calendar-panel.blade.php） ----------
        日期值 / 禁用 / 区间状态全由 store.calDays() 下发，这里只管外观。
        端点实心蓝、区间淡蓝、今天细描边、越界灰。 */
