@@ -18,4 +18,7 @@ mix.js('resources/js/app.js', 'public/js')
     .js('resources/js/mobile/app.js', 'public/js/mobile')
     // 云途旅行 C 端独立入口（渐进增强：SSR 首屏 + Alpine 局部刷新）
     .js('resources/js/fly/app.js', 'public/js/fly')
-    .postCss('resources/css/app.css', 'public/css');
+    .postCss('resources/css/app.css', 'public/css')
+    // 资源 URL 加 ?id=hash：不开启的话浏览器会一直用缓存里的旧 JS/CSS，
+    // 改完前端代码用户侧看不到变化（曾让「日历高亮」修复看起来没生效）
+    .version();

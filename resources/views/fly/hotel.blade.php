@@ -14,8 +14,16 @@
 
 @php
     $search = app(\App\Services\Fly\HotelSearchService::class);
+    // tone 类名写完整字面量：拼接写法会被 Tailwind 内容扫描当未使用清除，颜色整个失效
     $tone = function ($tag) {
-        return $tag['tone'] === 'gray' ? 'fly-tag' : 'fly-tag fly-tag--' . $tag['tone'];
+        if ($tag['tone'] === 'blue') {
+            return 'fly-tag fly-tag--blue';
+        }
+        if ($tag['tone'] === 'green') {
+            return 'fly-tag fly-tag--green';
+        }
+
+        return 'fly-tag';
     };
 @endphp
 
@@ -43,8 +51,10 @@
 
     {{-- ===================== 酒店概览 ===================== --}}
     <section class="fly-container pb-2">
-        <div class="grid grid-cols-1 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm lg:grid-cols-[22rem_1fr]">
-            <div class="relative fly-grad-{{ $card['grad_index'] }} h-48 lg:h-full"@if ($card['cover_url']) style="background-image:url('{{ $card['cover_url'] }}')"@endif>
+        {{-- 容器不能 overflow-hidden：日期日历要从概览卡里溢出来（裁掉就选不到下半月），
+             圆角改由封面图自己承担 --}}
+        <div class="grid grid-cols-1 rounded-3xl border border-gray-100 bg-white shadow-sm lg:grid-cols-[22rem_1fr]">
+            <div class="relative h-48 rounded-t-[calc(1.5rem-1px)] fly-grad-{{ $card['grad_index'] }} lg:h-full lg:rounded-l-[calc(1.5rem-1px)] lg:rounded-tr-none"@if ($card['cover_url']) style="background-image:url('{{ $card['cover_url'] }}')"@endif>
                 @if ($card['badge'])
                     <span class="fly-hotel-card__badge">{{ $card['badge'] }}</span>
                 @endif
@@ -111,28 +121,40 @@
                     <p class="mt-3 text-xs text-gray-400">前台电话：{{ $hotel->phone }}</p>
                 @endif
 
-                {{-- 改日期 = 重新查房量：只走 GET，JS 关闭时同样可用 --}}
-                <form class="mt-6 flex flex-wrap items-center gap-3"
+                {{-- 改日期 = 重新查房量：只走 GET，JS 关闭时同样可用（原生 date 输入兜底）。
+                     JS 开启时输入框隐藏、换自绘日历（与首页搜索表单共用 calendar-panel），
+                     值仍写回同一组 name 供 readDetailForm 读取 --}}
+                <form class="relative mt-6 flex flex-wrap items-center gap-3"
                       action="{{ route('fly.hotels.show', $card['id']) }}" method="get"
                       @submit.prevent="$store.fly.submitDetail($el)"
-                      @change="$store.fly.onDetailChange($el)">
+                      @change="$store.fly.onDetailChange($el)"
+                      @click.outside="$store.fly.calOpen = false"
+                      @keydown.escape.window="$store.fly.calOpen = false">
                     <div class="fly-field w-44">
                         <div class="min-w-0">
                             <label class="fly-field__label" for="d-check-in">入住</label>
                             <input id="d-check-in" type="date" name="check_in"
                                    value="{{ $filters['check_in'] }}" min="{{ $filters['today'] }}"
-                                   :value="$store.fly.filters.check_in">
+                                   :value="$store.fly.filters.check_in" x-show="false">
+                            <button type="button" class="fly-field__value text-left" x-cloak
+                                    @click="$store.fly.openCalendar('in')"
+                                    x-text="$store.fly.calDateText($store.fly.filters.check_in)"></button>
                         </div>
                     </div>
                     <div class="fly-field w-44">
                         <div class="min-w-0">
                             <label class="fly-field__label" for="d-check-out">离店</label>
                             <input id="d-check-out" type="date" name="check_out" value="{{ $filters['check_out'] }}"
-                                   :value="$store.fly.filters.check_out">
+                                   :value="$store.fly.filters.check_out" x-show="false">
+                            <button type="button" class="fly-field__value text-left" x-cloak
+                                    @click="$store.fly.openCalendar('out')"
+                                    x-text="$store.fly.calDateText($store.fly.filters.check_out)"></button>
                         </div>
                     </div>
                     <span class="fly-nights" x-text="$store.fly.nights + ' 晚'">{{ $filters['nights'] }} 晚</span>
                     <button type="submit" class="fly-btn-outline" :disabled="$store.fly.detailLoading">查询房量</button>
+
+                    @include('fly.partials.calendar-panel')
                 </form>
             </div>
         </div>

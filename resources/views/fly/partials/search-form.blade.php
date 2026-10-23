@@ -29,22 +29,34 @@
         </div>
     </div>
 
-    {{-- 入住 / 离店日期：不放字段图标，原生日期控件自带日历小图标，再加一个就是三个图标 --}}
-    <div class="fly-field fly-field--dates fly-form__dates">
+    {{-- 入住 / 离店日期：JS 关闭时是原生 <input type="date">（不放字段图标，原生控件自带
+         日历小图标）；Alpine 启动后输入框隐藏（x-show="false" 只在 JS 开启时生效），
+         换成自绘日历（calendar-panel），值仍写回同一组 name 供 readForm 读取 --}}
+    <div class="fly-field fly-field--dates fly-form__dates relative"
+         @click.outside="$store.fly.calOpen = false"
+         @keydown.escape.window="$store.fly.calOpen = false">
         <div class="fly-dates">
             <div class="fly-dates__cell">
                 <label class="fly-field__label" for="fly-check-in">入住</label>
                 <input id="fly-check-in" type="date" name="check_in"
                        value="{{ $filters['check_in'] }}" min="{{ $filters['today'] }}"
-                       :value="$store.fly.filters.check_in">
+                       :value="$store.fly.filters.check_in" x-show="false">
+                <button type="button" class="fly-field__value text-left" x-cloak
+                        @click="$store.fly.openCalendar('in')"
+                        x-text="$store.fly.calDateText($store.fly.filters.check_in)"></button>
             </div>
             <div class="fly-dates__cell">
                 <label class="fly-field__label" for="fly-check-out">离店</label>
                 <input id="fly-check-out" type="date" name="check_out" value="{{ $filters['check_out'] }}"
-                       :value="$store.fly.filters.check_out">
+                       :value="$store.fly.filters.check_out" x-show="false">
+                <button type="button" class="fly-field__value text-left" x-cloak
+                        @click="$store.fly.openCalendar('out')"
+                        x-text="$store.fly.calDateText($store.fly.filters.check_out)"></button>
             </div>
         </div>
         <span class="fly-nights" x-text="$store.fly.nights + ' 晚'">{{ $filters['nights'] }} 晚</span>
+
+        @include('fly.partials.calendar-panel')
     </div>
 
     {{-- 关键词 --}}

@@ -107,6 +107,13 @@ export function registerFlyStore(Alpine) {
         detailLoading: false,
         detailDirty: false,
 
+        // ---------- 自绘日历（渐进增强：JS 关闭时整块不参与，原生 date 输入兜底） ----------
+        calOpen: false,
+        calY: 0, // 日历视图显示的年
+        calM: 0, // 日历视图显示的月（1-12）
+        calPicking: 'in', // in 正在选入住 / out 正在选离店
+        calHover: '', // 选离店时悬停预览的日期
+
         // ============================================================ 水合与初始化
 
         /** 必须在 Alpine.start() 之前调用：让 :value / x-text 绑定从第一帧起就是真实数据 */
@@ -609,6 +616,216 @@ export function registerFlyStore(Alpine) {
             });
         },
 
+        // ============================================================ 自绘日历
+        // 选择逻辑与 setDates 的钳制规则一致：今天起订、最多往后 MAX_DAYS_AHEAD 天、
+        // 一单最多 MAX_NIGHTS 晚。首页选完走 runSearch，详情页走 refreshRoomTypes。
+
+        calBounds() {
+            const t = toDayMs(this.today) !== null ? toDayMs(this.today) : Date.now();
+            const now = new Date(t);
+            const first = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+            const end = new Date(t + MAX_DAYS_AHEAD * DAY_MS);
+
+            return [first, Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)];
+        },
+
+        openCalendar(picking) {
+            const base = DATE_RE.test(this.filters.check_in) ? this.filters.check_in : this.today;
+
+            if (DATE_RE.test(base)) {
+                const parts = base.split('-');
+
+                this.calY = Number(parts[0]);
+                this.calM = Number(parts[1]);
+            } else {
+                const now = new Date();
+
+                this.calY = now.getUTCFullYear();
+                this.calM = now.getUTCMonth() + 1;
+            }
+
+            this.calPicking = picking === 'out' ? 'out' : 'in';
+            this.calHover = '';
+            this.calOpen = true;
+
+            // 面板可能伸到视口外（矮窗口 + 首页 hero 靠上）：滚动到刚好完整可见
+            Alpine.nextTick(() => {
+                const el = document.querySelector('.fly-cal');
+
+                if (el) {
+                    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            });
+        },
+
+        calCanShift(delta) {
+            const bounds = this.calBounds();
+
+            return delta < 0
+                ? Date.UTC(this.calY, this.calM - 2, 1) >= bounds[0]
+                : Date.UTC(this.calY, this.calM, 1) <= bounds[1];
+        },
+
+        calShiftMonth(delta) {
+            if (!this.calCanShift(delta)) {
+                return;
+            }
+
+            let y = this.calY;
+            let m = this.calM + delta;
+
+            if (m < 1) {
+                m = 12;
+                y--;
+            }
+            if (m > 12) {
+                m = 1;
+                y++;
+            }
+
+            this.calY = y;
+            this.calM = m;
+        },
+
+        calTitle() {
+            return this.calY + ' 年 ' + this.calM + ' 月';
+        },
+
+        calDayState(date) {
+            const inDate = this.filters.check_in;
+
+            // 选离店：起点立刻常亮（不等 hover），悬停处实时预览终点与区间
+            if (this.calPicking === 'out') {
+                if (!inDate) {
+                    return '';
+                }
+
+                const hover = this.calHover;
+
+                if (date === inDate) {
+                    return 'start';
+                }
+
+                if (hover > inDate) {
+                    if (date === hover) {
+                        return 'end';
+                    }
+                    if (date > inDate && date < hover) {
+                        return 'between';
+                    }
+                }
+
+                return '';
+            }
+
+            // 选入住：把当前已选区间亮出来，用户才知道自己改的是哪一段
+            const outDate = this.filters.check_out;
+
+            if (inDate && date === inDate) {
+                return 'start';
+            }
+            if (outDate && date === outDate) {
+                return 'end';
+            }
+            if (inDate && outDate && date > inDate && date < outDate) {
+                return 'between';
+            }
+
+            return '';
+        },
+
+        /** 42 格（含月首补位空格），状态与 disabled 一并在后端算好，Blade 只读 */
+        calDays() {
+            const t = toDayMs(this.today) !== null ? toDayMs(this.today) : Date.now();
+            const today = fromDayMs(t);
+            const maxDate = fromDayMs(t + MAX_DAYS_AHEAD * DAY_MS);
+            const pickingOut = this.calPicking === 'out' && toDayMs(this.filters.check_in) !== null;
+            const maxOut = pickingOut ? fromDayMs(toDayMs(this.filters.check_in) + MAX_NIGHTS * DAY_MS) : '';
+            const offset = new Date(Date.UTC(this.calY, this.calM - 1, 1)).getUTCDay();
+            const daysInMonth = new Date(Date.UTC(this.calY, this.calM, 0)).getUTCDate();
+            const cells = [];
+
+            for (let i = 0; i < offset; i++) {
+                cells.push({ key: 'blank-' + i, date: '', label: '' });
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = fromDayMs(Date.UTC(this.calY, this.calM - 1, d));
+
+                cells.push({
+                    key: date,
+                    date: date,
+                    label: String(d),
+                    disabled: date < today || date > maxDate || (maxOut !== '' && date > maxOut),
+                    state: this.calDayState(date),
+                    today: date === today,
+                });
+            }
+
+            return cells;
+        },
+
+        calClass(cell) {
+            // 变体类名必须以完整字面量出现：Tailwind 按源码扫描决定保留哪些规则，
+            // 拼接出来的类名（'fly-cal__day--' + state）会被当未使用清除，样式整个失效
+            let cls = 'fly-cal__day';
+
+            if (cell.state === 'start') {
+                cls += ' fly-cal__day--start';
+            } else if (cell.state === 'end') {
+                cls += ' fly-cal__day--end';
+            } else if (cell.state === 'between') {
+                cls += ' fly-cal__day--between';
+            } else if (!cell.disabled) {
+                cls += ' fly-cal__day--free';
+            }
+
+            if (cell.today) {
+                cls += ' fly-cal__day--today';
+            }
+
+            return cls;
+        },
+
+        /** 「10月22日」；跨年时补上年份，避免 12 月订到次年看不出来 */
+        calDateText(date) {
+            if (typeof date !== 'string' || !DATE_RE.test(date)) {
+                return '选择日期';
+            }
+
+            const parts = date.split('-');
+            const todayYear = DATE_RE.test(this.today) ? Number(this.today.split('-')[0]) : Number(parts[0]);
+            const year = Number(parts[0]) !== todayYear ? parts[0] + ' 年 ' : '';
+
+            return year + Number(parts[1]) + ' 月 ' + Number(parts[2]) + ' 日';
+        },
+
+        pickCalDay(cell) {
+            if (!cell || !cell.date || cell.disabled) {
+                return;
+            }
+
+            if (this.calPicking === 'out' && cell.date > this.filters.check_in) {
+                this.setDates(this.filters.check_in, cell.date);
+                this.calPicking = 'in';
+                this.calOpen = false;
+                this.afterDatePick();
+
+                return;
+            }
+
+            // 点了不晚于入住日的日子：视为重新选入住
+            this.setDates(cell.date, '');
+            this.calPicking = 'out';
+        },
+
+        afterDatePick() {
+            if (this.mode === 'detail') {
+                return this.refreshRoomTypes();
+            }
+
+            return this.runSearch();
+        },
+
         /** 空态里的两个「放宽一档」链接：只去掉一个条件，另一个留着 */
         noCityUrl() {
             const params = this.query();
@@ -738,7 +955,15 @@ export function registerFlyStore(Alpine) {
         },
 
         tagClass(tag) {
-            return tag.tone && tag.tone !== 'gray' ? 'fly-tag fly-tag--' + tag.tone : 'fly-tag';
+            // 类名写完整字面量：拼接写法会被 Tailwind 内容扫描当成未使用而清除
+            if (tag.tone === 'blue') {
+                return 'fly-tag fly-tag--blue';
+            }
+            if (tag.tone === 'green') {
+                return 'fly-tag fly-tag--green';
+            }
+
+            return 'fly-tag';
         },
 
         scoreText(card) {
