@@ -19,7 +19,7 @@
 import { SEARCH_DEBOUNCE_MS, MAX_NIGHTS, MAX_DAYS_AHEAD, MAX_KEYWORD_LENGTH } from './config';
 import * as api from './api';
 import { loadSearch, saveSearch } from './storage';
-import { CHINA_CITIES } from './china-cities';
+import { CHINA_CITIES, filterCityGroups } from '../china-cities';
 
 const DAY_MS = 86400000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -291,39 +291,9 @@ export function registerFlyStore(Alpine) {
                 : 'fly-city-item';
         },
 
-        /** 按市名或省名过滤，仍按省分组返回；空省剔除 */
+        /** 按市名或省名过滤，仍按省分组返回；空省剔除（过滤逻辑与后台 city-picker 共用） */
         cityGroups() {
-            const query = String(this.cityQuery || '').trim().toLowerCase();
-
-            if (query === '') {
-                return this.allCities;
-            }
-
-            const groups = [];
-
-            for (let i = 0; i < this.allCities.length; i++) {
-                const group = this.allCities[i];
-
-                if (group.province.toLowerCase().indexOf(query) !== -1) {
-                    groups.push({ province: group.province, cities: group.cities });
-
-                    continue;
-                }
-
-                const cities = [];
-
-                for (let j = 0; j < group.cities.length; j++) {
-                    if (group.cities[j].toLowerCase().indexOf(query) !== -1) {
-                        cities.push(group.cities[j]);
-                    }
-                }
-
-                if (cities.length > 0) {
-                    groups.push({ province: group.province, cities: cities });
-                }
-            }
-
-            return groups;
+            return filterCityGroups(this.allCities, this.cityQuery);
         },
 
         /** 该城市在售酒店数（来自 SSR 水合的 cities），无数据返回 0，模板不渲染角标 */

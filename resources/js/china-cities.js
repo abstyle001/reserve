@@ -5,7 +5,8 @@
  * （杭州、三亚、上海），选出来的名字直接进 /fly?city= 搜索，选带「市」的名字会搜空。
  * 自治州取常用简称（大理、湘西、西双版纳）；青海「海南州」带后缀以免与海南省撞名。
  * 直辖市：省份与城市同名，只出一个条目。
- * 纯静态数据，不运行时请求；过滤逻辑在 store.cityGroups()。
+ * 纯静态数据，不运行时请求；过滤逻辑在共享的 filterCityGroups()，
+ * 云途搜索栏（fly/store.js）与后台酒店表单（city-picker.js）共用这一份。
  */
 export const CHINA_CITIES = [
     { province: '北京', cities: ['北京'] },
@@ -127,3 +128,38 @@ export const CHINA_CITIES = [
     { province: '香港', cities: ['香港'] },
     { province: '澳门', cities: ['澳门'] },
 ];
+
+/** 按市名或省名过滤，仍按省分组返回；空省剔除。query 为空返回原数组 */
+export function filterCityGroups(cities, query) {
+    const q = String(query || '').trim().toLowerCase();
+
+    if (q === '') {
+        return cities;
+    }
+
+    const groups = [];
+
+    for (let i = 0; i < cities.length; i++) {
+        const group = cities[i];
+
+        if (group.province.toLowerCase().indexOf(q) !== -1) {
+            groups.push({ province: group.province, cities: group.cities });
+
+            continue;
+        }
+
+        const matched = [];
+
+        for (let j = 0; j < group.cities.length; j++) {
+            if (group.cities[j].toLowerCase().indexOf(q) !== -1) {
+                matched.push(group.cities[j]);
+            }
+        }
+
+        if (matched.length > 0) {
+            groups.push({ province: group.province, cities: matched });
+        }
+    }
+
+    return groups;
+}

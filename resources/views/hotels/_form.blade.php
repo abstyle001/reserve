@@ -39,9 +39,7 @@
     </div>
 
     <div>
-        <label for="city" class="admin-label">城市</label>
-        <input id="city" name="city" type="text" class="admin-input" placeholder="如：上海"
-               value="{{ old('city', isset($hotel) ? $hotel->city : '') }}">
+        <x-city-picker :value="old('city', isset($hotel) ? $hotel->city : '')" />
         <p class="mt-1 text-xs text-gray-400">C 端按城市搜索酒店时使用，留空则不出现在城市筛选中</p>
         @error('city') <p class="admin-error">{{ $message }}</p> @enderror
     </div>
