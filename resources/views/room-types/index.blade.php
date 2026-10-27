@@ -50,6 +50,7 @@
                             <td class="tabular-nums">{{ $roomType->rooms_count }}</td>
                             <td class="whitespace-nowrap text-right">
                                 <div class="inline-flex items-center gap-4">
+                                    <a href="{{ route('hotels.room-types.inventory', [$hotel, $roomType]) }}" class="admin-action">房量计划</a>
                                     <a href="{{ route('hotels.room-types.edit', [$hotel, $roomType]) }}" class="admin-action">编辑</a>
                                     <form method="POST" action="{{ route('hotels.room-types.destroy', [$hotel, $roomType]) }}"
                                           onsubmit="return confirm('确定删除房型「{{ $roomType->name }}」吗？');">

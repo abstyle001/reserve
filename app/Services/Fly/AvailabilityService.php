@@ -5,13 +5,15 @@ namespace App\Services\Fly;
 use App\Models\Booking;
 use App\Models\Room;
 use App\Models\RoomType;
+use App\Models\RoomTypeBlock;
 
 /**
- * 日期维度的房量计算 —— 库存口径的唯一实现处。
+ * 日期维度的房量计算 —— 库存口径的唯一实现处（SQL 版见 StockSql，两处必须一致）。
  *
- * 口径：可订间数 = 该房型未停用的房间数 − 区间重叠的有效订单间数。
+ * 口径：可订间数 = 该房型未停用的房间数 − 区间重叠的有效订单间数 − 区间内各晚停售间数的最大值。
  * 「停用」是房间自身的状态；「在住 / 打扫中」是此刻的客房状态，与未来某天无关，
- * 所以两者都算可售，未来的占用只由 bookings 的日期区间决定。
+ * 所以两者都算可售，未来的占用只由 bookings 的日期区间与 room_type_blocks 的停售计划决定。
+ * 停售取 max 不取 sum：每晚一行，同一批房间连续停售多晚时对一次多晚查询只该扣一次。
  */
 class AvailabilityService
 {
@@ -59,7 +61,31 @@ class AvailabilityService
     }
 
     /**
-     * 一批酒店在某日期区间下的房量明细。2 条 SQL（房型本身由调用方带出）。
+     * 按房型 id 批量取「区间内各晚停售间数的最大值」。1 条 SQL。
+     *
+     * 半开区间约定同 Booking::scopeOverlapping：晚 ∈ [checkIn, checkOut)。
+     * 取 max 不取 sum：同一批房间连续停售多晚，对一次多晚查询只该扣一次。
+     *
+     * @return array [room_type_id => int]
+     */
+    public function blockedByRange(array $roomTypeIds, $checkIn, $checkOut)
+    {
+        if (empty($roomTypeIds)) {
+            return [];
+        }
+
+        $rows = RoomTypeBlock::query()
+            ->whereIn('room_type_id', $roomTypeIds)
+            ->between($checkIn, $checkOut)
+            ->selectRaw('room_type_id, max(closed_rooms) as agg_rooms')
+            ->groupBy('room_type_id')
+            ->get();
+
+        return $this->toIdMap($rows, 'agg_rooms');
+    }
+
+    /**
+     * 一批酒店在某日期区间下的房量明细。3 条 SQL（房型本身由调用方带出）。
      *
      * @param  array  $roomTypes  RoomType 集合或数组，需含 id / hotel_id / price / capacity / bed_type
      * @return array  [hotel_id => ['types' => [房型载荷…], 'remaining_total' => int, 'min_price' => float|null]]
@@ -77,6 +103,7 @@ class AvailabilityService
         $ids = array_values(array_unique($ids));
         $totals   = $this->sellableRoomTotals($ids);
         $occupied = $this->occupiedByRange($ids, $checkIn, $checkOut);
+        $blocked  = $this->blockedByRange($ids, $checkIn, $checkOut);
 
         $result = [];
         foreach ($grouped as $hotelId => $types) {
@@ -85,7 +112,7 @@ class AvailabilityService
             $minPrice = null;
 
             foreach ($types as $type) {
-                $remaining = $this->remainingOf((int) $type->id, $totals, $occupied);
+                $remaining = $this->remainingOf((int) $type->id, $totals, $occupied, $blocked);
 
                 $items[] = [
                     'id'          => (int) $type->id,
@@ -120,14 +147,15 @@ class AvailabilityService
     }
 
     /**
-     * 单个房型在某区间的可订间数。写路径复核用，2 条 SQL。
+     * 单个房型在某区间的可订间数。写路径复核用，3 条 SQL。
      */
     public function remainingFor(RoomType $roomType, $checkIn, $checkOut)
     {
         $totals   = $this->sellableRoomTotals([$roomType->id]);
         $occupied = $this->occupiedByRange([$roomType->id], $checkIn, $checkOut);
+        $blocked  = $this->blockedByRange([$roomType->id], $checkIn, $checkOut);
 
-        return $this->remainingOf((int) $roomType->id, $totals, $occupied);
+        return $this->remainingOf((int) $roomType->id, $totals, $occupied, $blocked);
     }
 
     /**
@@ -178,12 +206,13 @@ class AvailabilityService
         return count($rooms) === $count ? array_map('intval', $rooms) : [];
     }
 
-    private function remainingOf($roomTypeId, array $totals, array $occupied)
+    private function remainingOf($roomTypeId, array $totals, array $occupied, array $blocked = [])
     {
-        $total = isset($totals[$roomTypeId]) ? (int) $totals[$roomTypeId] : 0;
-        $used  = isset($occupied[$roomTypeId]) ? (int) $occupied[$roomTypeId] : 0;
+        $total   = isset($totals[$roomTypeId]) ? (int) $totals[$roomTypeId] : 0;
+        $used    = isset($occupied[$roomTypeId]) ? (int) $occupied[$roomTypeId] : 0;
+        $closed  = isset($blocked[$roomTypeId]) ? (int) $blocked[$roomTypeId] : 0;
 
-        return max(0, $total - $used);
+        return max(0, $total - $used - $closed);
     }
 
     private function toIdMap($rows, $valueColumn)

@@ -37,4 +37,9 @@ class RoomType extends Model
     {
         return $this->hasMany(Booking::class);
     }
+
+    public function roomTypeBlocks()
+    {
+        return $this->hasMany(RoomTypeBlock::class);
+    }
 }

@@ -13,7 +13,7 @@ use Carbon\Carbon;
  * SSR 首屏与只读 JSON 接口共用 search() / formatCard()，字段名一字不差，
  * 避免 Blade 与 Alpine 两份渲染漂移。
  *
- * 查询条数恒定：paginate 的 count + 页查询（2 条）+ 房型清单 + 可售聚合 + 占用聚合（3 条）= 5 条，
+ * 查询条数恒定：paginate 的 count + 页查询（2 条）+ 房型清单 + 可售聚合 + 占用聚合 + 停售聚合（4 条）= 6 条，
  * 与「本页几家酒店、每家几个房型、每天几个订单」无关 —— 分步批量聚合，
  * 绝不在卡片循环里发查询。
  */
@@ -152,7 +152,7 @@ class HotelSearchService
     }
 
     /**
-     * 单个酒店维度：详情页 / 下单页用同一份房量口径（3 条 SQL）。
+     * 单个酒店维度：详情页 / 下单页用同一份房量口径（4 条 SQL）。
      */
     public function roomTypesFor(Hotel $hotel, $checkIn, $checkOut)
     {
@@ -293,7 +293,7 @@ class HotelSearchService
     }
 
     /**
-     * 本页房量：2 条批量聚合（房型清单 + 可售/占用由 service 内部各 1 条）。
+     * 本页房量：4 条批量聚合（房型清单 + 可售/占用/停售由 service 内部各 1 条）。
      */
     private function aggregateFor(array $hotelIds, array $filters)
     {

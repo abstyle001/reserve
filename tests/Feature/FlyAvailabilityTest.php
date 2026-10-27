@@ -375,8 +375,8 @@ class FlyAvailabilityTest extends TestCase
         $response = $this->getJson('/api/fly/hotels?city=上海&check_in=' . $this->checkIn . '&check_out=' . $this->checkOut)
             ->assertJsonPath('code', 0);
 
-        // paginate 的 count + items，加房型清单、可售聚合、占用聚合 = 5 条
-        $this->assertCount(5, $queries, implode("\n", $queries));
+        // paginate 的 count + items，加房型清单、可售聚合、占用聚合、停售聚合 = 6 条
+        $this->assertCount(6, $queries, implode("\n", $queries));
         $this->assertSame(3, $response->json('data.total'));
         $this->assertCount(3, $response->json('data.items'));
     }

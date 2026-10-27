@@ -12,7 +12,11 @@ use InvalidArgumentException;
  * 库存口径被三处调用（搜索列表 / 酒店详情 / 下单写接口）。若各写一遍重叠条件，
  * 将来改状态机必漏改，所以集中在这里。
  *
- * 只用 COUNT / SUM / COALESCE 与 'Y-m-d' 字符串区间比较：MySQL 与 SQLite 通用，
+ * 口径：可订间数 = 非停用房间数 − 重叠有效订单间数 − 区间内各晚停售间数的最大值。
+ * 停售（room_type_blocks）取 max 不取 sum：每晚一行，同一批房间连续停售多晚时
+ * 对一次多晚查询只该扣一次。
+ *
+ * 只用 COUNT / SUM / MAX / COALESCE 与 'Y-m-d' 字符串区间比较：MySQL 与 SQLite 通用，
  * 不用 DATEDIFF / strftime / IFNULL，也不用 whereDate()（sqlite 会把列包进函数，索引失效）。
  */
 class StockSql
@@ -52,10 +56,15 @@ class StockSql
             . ' where bookings.room_type_id = ' . $typeRef
             . ' and bookings.status in (' . $active . ')'
             . ' and bookings.check_in < ?'
-            . ' and bookings.check_out > ?), 0)';
+            . ' and bookings.check_out > ?), 0)'
+            . ' - coalesce((select max(room_type_blocks.closed_rooms) from room_type_blocks'
+            . ' where room_type_blocks.room_type_id = ' . $typeRef
+            . ' and room_type_blocks.night_date >= ?'
+            . ' and room_type_blocks.night_date < ?), 0)';
 
-        // 半开区间重叠：已存在的入住 < 新离店 且 已存在的离店 > 新入住
-        return [$sql, [$checkOut, $checkIn]];
+        // 半开区间重叠：已存在的入住 < 新离店 且 已存在的离店 > 新入住；
+        // 停售晚同属半开区间：night_date ∈ [checkIn, checkOut)
+        return [$sql, [$checkOut, $checkIn, $checkIn, $checkOut]];
     }
 
     /**

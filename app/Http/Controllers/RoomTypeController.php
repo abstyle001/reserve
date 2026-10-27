@@ -60,6 +60,7 @@ class RoomTypeController extends Controller
             return back()->with('error', '该房型下还有房间，不能删除');
         }
 
+        $roomType->roomTypeBlocks()->delete();
         $roomType->delete();
 
         return redirect()->route('hotels.room-types.index', $hotel)

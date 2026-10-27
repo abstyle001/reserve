@@ -74,6 +74,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('hotels.room-types', \App\Http\Controllers\RoomTypeController::class)->except(['show']);
     Route::resource('hotels.rooms', \App\Http\Controllers\RoomController::class)->except(['show']);
 
+    // 房量计划（按晚停售）：与 /fly 日期筛选联动的库存扣减入口
+    Route::get('hotels/{hotel}/room-types/{roomType}/inventory', [\App\Http\Controllers\RoomInventoryController::class, 'index'])->name('hotels.room-types.inventory');
+    Route::post('hotels/{hotel}/room-types/{roomType}/inventory', [\App\Http\Controllers\RoomInventoryController::class, 'store'])->name('hotels.room-types.inventory.store');
+    Route::delete('hotels/{hotel}/room-types/{roomType}/inventory/{block}', [\App\Http\Controllers\RoomInventoryController::class, 'destroy'])->name('hotels.room-types.inventory.destroy');
+
     // C 端预订订单：只读列表 + 取消。不用 Route::resource —— 这里没有增删改，
     // resource 会注册出 7 条指向不存在方法的路由，route:list 里全是坑。
     Route::get('bookings', [\App\Http\Controllers\BookingAdminController::class, 'index'])->name('bookings.index');

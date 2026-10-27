@@ -12,7 +12,7 @@
 - **后端**：Laravel 8.75（PHP 8）。数据库**本机 `.env` 是 MySQL，测试跑 sqlite `:memory:`** —— 所有 SQL 必须双方言通用（见 §2 的坑位说明）。
 - **鉴权**：Breeze session 登录（`/login`、`/register`、`/logout`）。大屏 `/reserve` 与取号/放号写接口需登录；移动端 `/m`、只读查询接口、以及**整个 `/fly` C 端**公开（顾客不登录，订单凭证是 `订单号 + 手机号`）。
 - **前端**：Blade + Alpine.js + Tailwind CSS，走 laravel-mix（webpack）构建。
-- **核心场景**：① 大厅大屏展示取号结果、人工放号，前端 5 秒轮询队列状态；② 顾客在 `/fly` 搜酒店 → 选日期 → 看房量 → 下单 → 凭手机号查单/取消，后台 `/hotels` `/room-types` `/rooms` `/bookings` 维护数据与订单。
+- **核心场景**：① 大厅大屏展示取号结果、人工放号，前端 5 秒轮询队列状态；② 顾客在 `/fly` 搜酒店 → 选日期 → 看房量 → 下单 → 凭手机号查单/取消，后台 `/hotels` `/room-types` `/rooms` `/bookings` 维护数据与订单，房型「房量计划」按晚停售控制 C 端各日期的可订间数。
 
 ### 非目标
 
@@ -60,14 +60,16 @@ app/
     FlyOrderController.php     # index=手机号查单 / show=订单详情=下单结果页 / cancel=取消
     BookingAdminController.php # 后台 /bookings 列表 / 详情 / 取消（需登录）
     HotelController.php RoomTypeController.php RoomController.php   # 后台三级 CRUD
+    RoomInventoryController.php # ⭐ 房量计划：按晚停售的展示 / 设置 / 恢复（与 /fly 日期筛选联动）
   Models/
     Customer.php               # 表 customers：一条 = 一位客户的一次取号
     SerialGenerator.php        # 表 serial_generator：按 (queue_key, batch_no) 聚合的号池
     Booking.php                # ⭐ 表 bookings：一条 = 某房型 [check_in, check_out) 订 N 间（日期一律 Y-m-d 字符串）
+    RoomTypeBlock.php          # ⭐ 表 room_type_blocks：一行 = 某房型某晚停售 N 间（不占具体房间号）
     Hotel.php RoomType.php Room.php User.php
   Services/Fly/                # ⭐ 库存口径唯一出处（Controller 里不要重写 overlap 条件）
-    StockSql.php               # 「可订间数」SQL 片段：可售房数 − 区间重叠占用，列表页 selectRaw 与聚合共用
-    AvailabilityService.php    # 房型/酒店维度批量聚合 + 下单前房间分配 allocateRooms()
+    StockSql.php               # 「可订间数」SQL 片段：可售房数 − 区间重叠占用 − 各晚停售 max，列表页 selectRaw 与聚合共用
+    AvailabilityService.php    # 房型/酒店维度批量聚合（含 blockedByRange 停售聚合）+ 下单前房间分配 allocateRooms()
     HotelSearchService.php     # 搜索/分页/城市卡/排序，卡片载荷 formatCard()（SSR 与 JSON 同一规格）
     BookingRejectedException.php  # 房量业务拒绝（售罄 / 仅剩 N 间 / 房型跨酒店 / 酒店停业），转中文表单错误
 config/
@@ -109,7 +111,7 @@ resources/
                                #   外壳：results-live / pagination / city-card / search-form /
                                #         empty-state / promise-bar
     bookings/                  # 后台订单列表 + 详情
-    hotels/ rooms/ room-types/ # 后台三级 CRUD
+    hotels/ rooms/ room-types/ # 后台三级 CRUD；room-types/ 里含 inventory.blade.php（房量计划）
     ...                        # 其余为 Breeze 鉴权页面
   css/app.css                  # Tailwind 三层 + 苹果风组件类（m-* 移动端，fly-* 云途 C 端）
 routes/api.php                 # POST/DELETE/GET /api/reserve*；GET /api/fly/* 四条只读
@@ -294,7 +296,7 @@ GET /api/fly/bookings?phone[&order_no]               → data: {items[订单], p
 ### 7.2 库存口径（最重要的一节）
 
 ```
-可订间数 = 该房型下非停用房间数 − Σ room_count（active 且日期重叠的订单）
+可订间数 = 该房型下非停用房间数 − Σ room_count（active 且日期重叠的订单）− 区间内各晚停售间数的最大值
 ```
 
 - **半开区间 `[check_in, check_out)`**：入住当天算一晚、离店当天不算。于是
@@ -303,14 +305,24 @@ GET /api/fly/bookings?phone[&order_no]               → data: {items[订单], p
 - **占用只认 `scopeActive()` = `status IN (1 已预订, 3 已入住)`**。将来加核销入住时不改库存口径、
   不改查询，只多一次状态流转。取消是软状态（`status=2` + `cancelled_at`），行不删，
   `scopeActive` 自动把它剔出占用集合 → 房量立刻释放且历史可查。
+- **按晚停售（`room_type_blocks`，后台「房量计划」）**：一行 = 某房型某晚停售 N 间，
+  不占具体房间号。停售晚同属半开区间（`night_date ∈ [check_in, check_out)`），
+  判定唯一出处是 `RoomTypeBlock::scopeBetween()`。**取各晚的 max 不取 sum**：
+  每晚一行，同一批房间连续停售多晚时，对一次多晚查询只该扣一次。
+  后台入口 `RoomInventoryController`（GET/POST `/hotels/{hotel}/room-types/{roomType}/inventory`），
+  表单区间在 store 里展开成每晚一行并 upsert；重复提交同晚会覆盖，删除行即释放。
 - 日期由 `setCheckInAttribute` / `setCheckOutAttribute` 修改器强制归一成 `Y-m-d` 字符串。
   **绝不让 Eloquent 的 date cast 写成 `Y-m-d H:i:s`**，否则 `check_out > :in` 边界会算错。
-  同理**全项目禁用 `whereDate()`**（§2）。
+  同理**全项目禁用 `whereDate()`**（§2）。`night_date` 同理，由 `setNightDateAttribute` 归一。
 - **查询条数恒定，不许 N+1**：搜索 = `paginate` 的 count + 页查询（2 条）+ 房型清单 +
-  可售聚合 + 占用聚合（3 条）= **5 条**，与「本页几家酒店、每家几个房型、每天几个订单」无关。
-  `FlyAvailabilityTest` 用 `DB::listen` 把这条钉死了，加查询会让它红 —— 那是对的，别去改断言。
+  可售聚合 + 占用聚合 + 停售聚合（4 条）= **6 条**，与「本页几家酒店、每家几个房型、每天几个订单」无关。
+  `FlyAvailabilityTest` 用 `DB::listen` 把这条钉死了，加查询会让它红 —— 那是对的，别去改断言
+  （口径本身扩展时，跟着把断言计数与注释一起更新）。
 - 可售过滤必须留在 SQL 的 `whereExists` 里（`StockSql::minSellablePrice`），放 PHP 里 filter
   会让 `paginate` 的 total 与实际条数不一致。
+- 停售扣减有两个实现处，**必须同时改**：SQL 侧 `StockSql::remaining()` 的内联子查询
+  （列表页 min_price 排序用，不增查询条数），与 PHP 侧 `AvailabilityService::blockedByRange()`
+  （详情/下单的批量聚合）。口径注释两边都已写明，改一处漏一处 = 列表与详情各说一个数。
 
 ### 7.3 路由与鉴权边界
 
@@ -342,7 +354,7 @@ POST /fly/orders/{booking}/cancel         fly.orders.cancel     取消（写）
 ### 7.4 下单写路径与并发兜底
 
 顺序固定：Validator → `DB::transaction`{ 载入 RoomType 并确认 hotel 营业中（防跨酒店越权）
-→ `remainingFor()` 复核 → `AvailabilityService::allocateRooms()` → 落库 } → catch。
+→ `remainingFor()` 复核（含停售扣减，口径与 C 端一致）→ `AvailabilityService::allocateRooms()` → 落库 } → catch。
 
 - **sqlite 下 `lockForUpdate()` 是 no-op**，所以并发安全靠三重兜底，别谎称有行锁：
   ① `idempotency_key` 唯一索引挡双击提交（命中 `QueryException` 时按 key 回查，查到就当成功
@@ -472,6 +484,8 @@ php artisan serve
   - `FlyBookingTest` — 游客可下单（无 auth）、金额/晚数/单价快照、PRG 结果页可用自己的手机号打开、超量拒绝、售罄、跨酒店 `room_type_id` 越权、日期与手机号规则中文提示、同一 `idempotency_key` 只产生 1 单。
   - `FlyOrderAccessTest` — 按手机号只列自己的单、无 phone 与「查过但没有」的区别、详情凭手机号（错号 404 不是 403）、取消是软释放且重复取消被拒、JSON 脱敏。
   - `FlyBookingAdminTest` — 后台 `/bookings` 需登录、列表/详情/取消。
+  - `RoomTypeBlockTest` — 房量计划：停售只作用在停售的晚（半开区间）、多晚查询取各晚 max 不取 sum、
+    停售挡住超卖但放行余量、搜索列表同样扣减、后台设置/覆盖/恢复实时反映到 C 端、越权 404 与表单校验。
 - 测试里造日期用**相对日期**（`Carbon::now(config('fly.timezone'))->addDays(n)`），别硬编码
   `2026-10-25` 这种绝对日期 —— 过了那天用例会变红（`FlyBookingAdminTest` 曾踩过，已改到 `setUp` 里算）。
 - 读接口断言金额时用 `min_price_text`（字符串）或 `(float)`：Laravel 序列化 `900.0` 会输出 `900`，
@@ -522,4 +536,4 @@ php artisan serve
 
 ---
 
-*最后更新：2026-10-22（接入云途 C 端 `/fly`：`bookings` 日期区间订单表与库存口径、`app/Services/Fly/` 服务层、4 条只读 JSON 接口、SSR + Alpine 渐进增强、下单/查单/取消闭环与后台 `/bookings`；同时订正 §1/§2 的数据库与 PHP 运行时描述 —— 本机 `.env` 是 MySQL，测试是 sqlite `:memory:`；另重排搜索栏栅格与原生日期框样式，见 §4 样式三条）*
+*最后更新：2026-10-26（新增房量计划：`room_type_blocks` 按晚停售表 + `RoomInventoryController` 后台页面，库存口径扩为「可订 = 非停用房间数 − 重叠有效订单 − 各晚停售 max」，搜索列表恒定查询 5 → 6 条，见 §7.2；此前为 2026-10-22 的云途 C 端接入与 §4 样式订正）*
