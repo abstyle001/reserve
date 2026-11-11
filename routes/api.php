@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\FlyReadController;
 use App\Http\Controllers\Api\HealthController;
-use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ReserveController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;

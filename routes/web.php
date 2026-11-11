@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -84,19 +82,6 @@ Route::middleware('auth')->group(function () {
     Route::get('bookings', [\App\Http\Controllers\BookingAdminController::class, 'index'])->name('bookings.index');
     Route::get('bookings/{booking}', [\App\Http\Controllers\BookingAdminController::class, 'show'])->name('bookings.show');
     Route::post('bookings/{booking}/cancel', [\App\Http\Controllers\BookingAdminController::class, 'cancel'])->name('bookings.cancel');
-});
-
-Route::get('/upload', function () {
-    return '<form method="post" action="/upload" enctype="multipart/form-data">
-        '.csrf_field().'
-        <input type="file" name="file">
-        <button type="submit">上传</button>
-    </form>';
-});
-
-Route::post('/upload', function(Request $request){
-    $path = $request->file('file')->store('uploads');
-    return "文件上传成功，路径：".$path."<br> 访问地址：".Storage::url($path);
 });
 
 require __DIR__.'/auth.php';
