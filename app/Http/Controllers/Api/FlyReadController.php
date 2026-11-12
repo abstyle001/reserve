@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
 use App\Models\Hotel;
 use App\Services\Fly\HotelSearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * 云途旅行（/fly）只读 JSON 接口。
+ * 云途旅行（/fly）只读 JSON 接口（cities / hotels / room-types 共 3 条）。
  *
- * 顾客不登录，所以这里全部公开：无 session、无锁、不开事务（与 reserve 的 state/position 同规则）。
+ * 浏览公开：无 session、无锁、不开事务（与 reserve 的 state/position 同规则）。
  * 写操作（下单 / 取消）不放这里，走 web.php 的 Blade 表单 —— 见 AGENTS.md §5 的中间件排序坑。
+ * 查单 JSON 已随「手机号即凭证」一起下线：订单归属登录用户，走 web.php 的 /fly/orders。
  *
  * 响应外壳与 ReserveController 逐字同构：{code, message, data, errors}
  * 0 成功 / 1 业务失败 / 422 校验失败 / 500 兜底。
@@ -160,100 +160,5 @@ class FlyReadController extends Controller
             'message' => '查询成功',
             'data' => $data,
         ]);
-    }
-
-    /**
-     * GET /api/fly/bookings?phone[&order_no] — 凭手机号查单（C 端无登录态，手机号即凭证）
-     */
-    public function bookings(Request $request)
-    {
-        $validator = Validator::make(
-            $request->all(),
-            [
-                'phone'     => 'required|string|max:20',
-                'order_no'  => 'nullable|string|max:32',
-            ],
-            [
-                'phone.required' => '请输入查询手机号',
-                'phone.max'      => '手机号格式不正确',
-                'order_no.max'   => '订单号不能超过 32 个字符',
-            ]
-        );
-
-        if ($validator->fails()) {
-            return response()->json(
-                [
-                    'code' => 422,
-                    'message' => '参数校验失败',
-                    'errors' => $validator->errors(),
-                ],
-                422
-            );
-        }
-
-        $phone = trim((string) $request->input('phone'));
-        $orderNo = trim((string) $request->input('order_no', ''));
-
-        try {
-            $query = Booking::query()
-                ->forPhone($phone)
-                ->with(['hotel:id,name,city', 'roomType:id,name'])
-                ->orderByDesc('id');
-
-            if ($orderNo !== '') {
-                $query->where('order_no', $orderNo);
-            }
-
-            $items = [];
-            foreach ($query->limit(50)->get() as $booking) {
-                $items[] = $this->formatBooking($booking);
-            }
-        } catch (\Throwable $e) {
-            return response()->json([
-                'code' => 500,
-                'message' => '查询订单失败：' . $e->getMessage(),
-            ], 500);
-        }
-
-        return response()->json([
-            'code' => 0,
-            'message' => '查询成功',
-            'data' => ['items' => $items, 'phone' => $phone],
-        ]);
-    }
-
-    private function formatBooking(Booking $booking)
-    {
-        return [
-            'order_no'           => $booking->order_no,
-            'status'             => (int) $booking->status,
-            'status_label'       => $booking->status_label,
-            'check_in'           => $booking->check_in,
-            'check_out'          => $booking->check_out,
-            'nights'             => (int) $booking->nights,
-            'room_count'         => (int) $booking->room_count,
-            'price'              => (float) $booking->price,
-            'unit_price_text'    => $booking->unit_price_text,
-            'total_amount'       => (float) $booking->total_amount,
-            'total_amount_text'  => $booking->amount_text,
-            'guest_name'         => $booking->guest_name_masked,
-            'guest_phone'        => $booking->guest_phone_masked,
-            'remark'             => $booking->remark,
-            // 时间一律用模型里的 C 端时区访问器，别让 JSON 与 Blade 两份页面各说一个时间
-            'created_at'         => $booking->created_at ? $booking->created_at->toDateTimeString() : null,
-            'booked_at_text'     => $booking->booked_at_text,
-            'cancelled_at_text'  => $booking->cancelled_at_text,
-            'can_cancel'         => (int) $booking->status === Booking::STATUS_BOOKED,
-            'hotel'              => [
-                'id'         => $booking->hotel ? (int) $booking->hotel->id : (int) $booking->hotel_id,
-                'name'       => $booking->hotel ? $booking->hotel->name : null,
-                'city'       => $booking->hotel ? $booking->hotel->city : null,
-                'detail_url' => '/fly/hotels/' . (int) $booking->hotel_id,
-            ],
-            'room_type'          => [
-                'id'   => (int) $booking->room_type_id,
-                'name' => $booking->roomType ? $booking->roomType->name : null,
-            ],
-        ];
     }
 }

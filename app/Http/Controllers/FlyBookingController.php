@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Validator;
 /**
  * 下单闭环（P5）：/fly/hotels/{hotel}/book 渲染表单，/fly/bookings 写订单。
  *
- * 全程 SSR 表单 POST + redirect，不发 JSON 写请求：C 端顾客不登录，但必须有
- * session + CSRF，所以两条路由都在 web.php 的 web 组里、且都不加 auth 中间件。
+ * 全程 SSR 表单 POST + redirect，不发 JSON 写请求。下单/查单强制登录：
+ * 订单归属 bookings.user_id（当前登录用户），guest_phone 只是入住人联系方式。
  *
  * 房量口径只走 AvailabilityService，本页展示的 remaining 与提交时复核的是同一函数；
  * 模板里绝不做减法。
@@ -109,6 +109,8 @@ class FlyBookingController extends Controller
         }
 
         $input = $validator->validated();
+        // 订单归属当前登录账号（路由已叠 auth，user() 必非空）
+        $input['user_id'] = $request->user()->id;
 
         try {
             $booking = DB::transaction(function () use ($input) {
@@ -181,6 +183,7 @@ class FlyBookingController extends Controller
 
         return Booking::create([
             'order_no'        => $this->uniqueOrderNo(),
+            'user_id'         => $input['user_id'],
             'hotel_id'        => $hotel->id,
             'room_type_id'    => $roomType->id,
             'room_id'         => $rooms[0],
@@ -238,9 +241,9 @@ class FlyBookingController extends Controller
         throw new BookingRejectedException('系统繁忙，请稍后重试');
     }
 
-    /** 结果页 = 订单详情页，凭证是手机号（C 端订单没有 user_id） */
+    /** 结果页 = 订单详情页，归属是当前登录用户，无需任何 URL 凭证 */
     private function resultUrl(Booking $booking)
     {
-        return route('fly.orders.show', $booking) . '?phone=' . rawurlencode((string) $booking->guest_phone);
+        return route('fly.orders.show', $booking);
     }
 }

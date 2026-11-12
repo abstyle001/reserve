@@ -128,9 +128,8 @@ RESERVE_QUEUE_OPTIONS="1号窗口,2号窗口,急诊"
 | GET | `/api/fly/cities` | — | 城市清单 + 各城在售酒店数 |
 | GET | `/api/fly/hotels` | `city` `q` `check_in` `check_out` `sort` `page` | 酒店卡片分页（含实时房量与起价） |
 | GET | `/api/fly/hotels/{hotel}/room-types` | `check_in` `check_out` | 单酒店房型列表 + 各房型可订间数 |
-| GET | `/api/fly/bookings` | `phone`（`order_no` 可选） | 按手机号查订单（脱敏输出） |
 
-> 下单 / 取消是 Web 表单（`POST /fly/bookings`、`POST /fly/orders/{booking}/cancel`，`@csrf` + redirect），不暴露 C 端写 JSON 接口。
+> 下单 / 查单 / 取消是 Web 表单（`POST /fly/bookings`、`GET /fly/orders`、`POST /fly/orders/{booking}/cancel`，`@csrf` + redirect），**均需登录**：订单归属 `bookings.user_id`，不暴露 C 端写 JSON 接口，也不再支持按手机号查单。
 
 ## 业务规则（批次状态机）
 

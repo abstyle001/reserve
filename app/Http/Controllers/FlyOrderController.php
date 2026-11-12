@@ -5,64 +5,39 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Room;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
- * C 端订单查询与取消（只认订单号 + 手机号）。
+ * C 端订单查询与取消（登录归属）。
  *
- * 归属凭证是 guest_phone，不是 Breeze 用户：bookings 表没有 user_id，
- * 顾客在 /fly 全程不登录。登录的后台账号反而不该在这里看到订单 —— 那是
- * route('dashboard') 的事。
+ * 归属凭证是 bookings.user_id：/fly 下单、查单、取消全部强制登录，
+ * 列表直接出当前用户的单，详情/取消校验归属。不符一律 404 而不是 403 ——
+ * 403 等于对外确认「这个订单号存在」。
+ * guest_phone 只是入住人联系方式，不再是任何凭证。
  *
  * show 同时兼任下单成功后的结果页（PRG：POST 完跳 GET，可收藏、刷新不重复提交）。
  */
 class FlyOrderController extends Controller
 {
-    /** 一个手机号最多列这么多条，防止拿别人的号爬 */
+    /** 单页最多列这么多条（一个账号的正常订单量远到不了） */
     const LIST_LIMIT = 50;
 
     public function index(Request $request)
     {
-        $phone = trim((string) $request->input('phone', ''));
-
-        // null = 还没查过（只渲染表单）；空集合 = 查过但没有
-        $bookings = null;
-        $errors = null;
-
-        if ($phone !== '') {
-            $validator = Validator::make(
-                ['phone' => $phone],
-                ['phone' => ['required', 'regex:/^1[3-9]\d{9}$/']],
-                ['phone.regex' => '请输入 11 位大陆手机号']
-            );
-
-            if ($validator->fails()) {
-                $errors = $validator->errors();
-            } else {
-                $bookings = Booking::query()
-                    ->forPhone($phone)
-                    ->with(['hotel:id,name,city,status', 'roomType:id,name'])
-                    ->orderByDesc('id')
-                    ->limit(self::LIST_LIMIT)
-                    ->get();
-            }
-        }
+        $bookings = Booking::query()
+            ->where('user_id', $request->user()->id)
+            ->with(['hotel:id,name,city,status', 'roomType:id,name'])
+            ->orderByDesc('id')
+            ->limit(self::LIST_LIMIT)
+            ->get();
 
         return view('fly.orders', [
-            'phone'    => $phone,
             'bookings' => $bookings,
-            'errors'   => $errors,
         ]);
     }
 
     public function show(Request $request, Booking $booking)
     {
-        $phone = trim((string) $request->input('phone', ''));
-
-        // 手机号不符一律 404：用 403 等于对外确认「这个订单号存在」
-        if ($phone === '' || $phone !== (string) $booking->guest_phone) {
-            abort(404);
-        }
+        $this->abortUnlessOwner($request, $booking);
 
         return view('fly.order', [
             'booking'  => $booking,
@@ -73,17 +48,14 @@ class FlyOrderController extends Controller
     }
 
     /**
-     * 取消订单。POST + 表单里的 phone 双凭证，取消是软状态流转：
+     * 取消订单。POST + 登录归属校验，取消是软状态流转：
      * 行不删，scopeActive 自动把它剔出占用集合 → 房量立刻释放且历史可查。
      */
     public function cancel(Request $request, Booking $booking)
     {
-        $phone = trim((string) $request->input('phone', ''));
-        $target = route('fly.orders.show', $booking) . '?phone=' . rawurlencode($phone);
+        $this->abortUnlessOwner($request, $booking);
 
-        if ($phone === '' || $phone !== (string) $booking->guest_phone) {
-            abort(404);
-        }
+        $target = route('fly.orders.show', $booking);
 
         // 条件更新代替「读-改-写」：sqlite 下 lockForUpdate 是语法级 no-op，
         // 而 where status=已预订 的 UPDATE 本身是原子的，两人同时点也只有一人改到行。
@@ -102,6 +74,17 @@ class FlyOrderController extends Controller
 
         return redirect()->to($target)
             ->with('flyFlash', '订单已取消，房量已释放。');
+    }
+
+    /**
+     * 归属校验：不是本人的单（含 user_id 为 NULL 的历史单）一律 404，
+     * 用 403 等于对外确认「这个订单号存在」。
+     */
+    private function abortUnlessOwner(Request $request, Booking $booking)
+    {
+        if ((int) $booking->user_id !== (int) $request->user()->id) {
+            abort(404);
+        }
     }
 
     /**

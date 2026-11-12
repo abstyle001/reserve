@@ -29,8 +29,8 @@ class FlyHomeController extends Controller
         // 注给 body[data-fly-config]，前端 store 用它做首屏水合，不必再发一次请求。
         // api 里的路径是 axios baseURL('/api') 之下的相对路径（与 reserve/mobile 同一约定），
         // 写成 '/api/fly/hotels' 会被拼成 '/api/api/fly/hotels'。
-        // 只列 store 真正会打的接口：/api/fly/cities 与 /api/fly/bookings 是对外只读契约
-        // （城市清单已随本响应给出，查单页是 SSR），不需要出现在页面配置里。
+        // 只列 store 真正会打的接口：/api/fly/cities 已随本响应给出，查单走 SSR 的
+        // /fly/orders（需登录），都不需要出现在页面配置里。
         // cities 上限是 city_limit（8，首页城市卡的口径）；badge 放宽上限，
         // 供城市面板给更多城市标注「N 家」，两者互不影响。
         $flyConfig = [

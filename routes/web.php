@@ -25,25 +25,28 @@ Route::get('/', function () {
 Route::get('/fly', [\App\Http\Controllers\FlyHomeController::class, 'index'])->name('fly.home');
 Route::get('/fly/hotels/{hotel}', [\App\Http\Controllers\FlyHotelController::class, 'show'])->name('fly.hotels.show');
 
-// 下单页 + 写接口：POST /fly/bookings 走 web 组拿 session + CSRF，但同样不加 auth —— 顾客不登录。
+// 下单页 + 写接口：强制登录（auth），订单归属 bookings.user_id。
+// 游客点「预订」被 guest 中间件送去 /login，登录成功后由 intended() 送回本页。
 // 校验失败/房量不足一律 back() 回表单带中文提示，不返回 JSON。
-// throttle:fly-write 按 IP+路由名限 10 次/分钟，挡脚本批量占房（顾客不登录，只能按 IP 限）。
-Route::get('/fly/hotels/{hotel}/book', [\App\Http\Controllers\FlyBookingController::class, 'create'])->name('fly.book');
+// throttle:fly-write 按 IP+路由名限 10 次/分钟，登录后仍兜底挡脚本批量占房。
+Route::get('/fly/hotels/{hotel}/book', [\App\Http\Controllers\FlyBookingController::class, 'create'])
+    ->middleware('auth')
+    ->name('fly.book');
 Route::post('/fly/bookings', [\App\Http\Controllers\FlyBookingController::class, 'store'])
-    ->middleware('throttle:fly-write')
+    ->middleware(['auth', 'throttle:fly-write'])
     ->name('fly.bookings.store');
 
-// 订单：/fly/orders 手机号查单 + /fly/orders/{booking} 详情（兼任下单结果页）。
+// 订单：/fly/orders 直接列出当前登录用户的单 + /fly/orders/{booking} 详情（兼任下单结果页）。
+// 详情/取消校验 user_id 归属，不符一律 404（用 403 等于对外确认「这个订单号存在」）。
 // 取消是 POST（不是 DELETE）：与后台全站表单风格一致，也让浏览器原生表单能直接提交。
-// throttle:fly-query 限 10 次/分钟：查单靠手机号即可列表，不限流可被遍历探测别人订单。
 Route::get('/fly/orders', [\App\Http\Controllers\FlyOrderController::class, 'index'])
-    ->middleware('throttle:fly-query')
+    ->middleware(['auth', 'throttle:fly-query'])
     ->name('fly.orders');
 Route::get('/fly/orders/{booking}', [\App\Http\Controllers\FlyOrderController::class, 'show'])
-    ->middleware('throttle:fly-query')
+    ->middleware(['auth', 'throttle:fly-query'])
     ->name('fly.orders.show');
 Route::post('/fly/orders/{booking}/cancel', [\App\Http\Controllers\FlyOrderController::class, 'cancel'])
-    ->middleware('throttle:fly-write')
+    ->middleware(['auth', 'throttle:fly-write'])
     ->name('fly.orders.cancel');
 
 // 预约取号 / 放号大屏控制台（单页），登录后可用

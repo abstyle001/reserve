@@ -150,14 +150,14 @@ class RoomTypeBlockTest extends TestCase
             'idempotency_key' => 'block-oversell',
         ];
 
-        // 还剩 1 间可卖，订 2 间必须被拒
-        $this->post('/fly/bookings', $base + ['room_count' => 2])
+        // 还剩 1 间可卖，订 2 间必须被拒（下单需登录，复用 admin() 的 actingAs 助手）
+        $this->admin()->post('/fly/bookings', $base + ['room_count' => 2])
             ->assertStatus(302)
             ->assertSessionHasErrors('submit');
         $this->assertSame(0, Booking::count());
 
         // 订 1 间可以
-        $this->post('/fly/bookings', $base + ['room_count' => 1])->assertStatus(302);
+        $this->admin()->post('/fly/bookings', $base + ['room_count' => 1])->assertStatus(302);
         $this->assertSame(1, Booking::count());
         $this->assertSame(0, $this->remaining($this->day(5), $this->day(7)));
     }

@@ -193,7 +193,9 @@ class FlyAvailabilityTest extends TestCase
         $this->makeRooms($type, 2);
 
         // 模型绑定查得到，但内容不能出：详情 404，接口给业务失败而不是空列表
+        // （book 页需登录：先叠 auth，否则先撞登录重定向而不是酒店 404）
         $this->get('/fly/hotels/' . $type->hotel_id)->assertNotFound();
+        $this->actingAs(\App\Models\User::factory()->create());
         $this->get('/fly/hotels/' . $type->hotel_id . '/book')->assertNotFound();
         $this->getJson('/api/fly/hotels/' . $type->hotel_id . '/room-types')
             ->assertStatus(200)
@@ -206,15 +208,18 @@ class FlyAvailabilityTest extends TestCase
         $hotel = $this->makeHotel('外滩酒店', '上海');
         $this->makeRooms($this->makeRoomType($hotel, 600), 2);
 
-        // 顾客全程不登录：这三个入口任何一个要求登录，C 端就废了
+        // 浏览全程不登录：这三个只读入口任何一个要求登录，C 端就废了
         $this->getJson('/api/fly/cities')->assertOk()->assertJsonPath('code', 0);
         $this->getJson('/api/fly/hotels')->assertOk()->assertJsonPath('code', 0);
         $this->getJson('/api/fly/hotels/' . $hotel->id . '/room-types')->assertOk()->assertJsonPath('code', 0);
-        $this->getJson('/api/fly/bookings?phone=13700137000')->assertOk()->assertJsonPath('code', 0);
+
+        // 查单 JSON 已下线（只凭手机号列单是越权漏洞），404 钉住这条回归
+        $this->getJson('/api/fly/bookings?phone=13700137000')->assertNotFound();
 
         $this->get('/fly')->assertOk();
         $this->get('/fly/hotels/' . $hotel->id)->assertOk();
-        $this->get('/fly/orders')->assertOk();
+        // 订单页需登录：游客被送去 /login，登录后由 intended() 送回来
+        $this->get('/fly/orders')->assertRedirect('/login');
     }
 
     // ================================================================= 房量口径

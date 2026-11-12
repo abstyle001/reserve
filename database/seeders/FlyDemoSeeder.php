@@ -28,7 +28,7 @@ class FlyDemoSeeder extends Seeder
     const ORDER_PREFIX = 'YTDEMO';    // 演示订单号前缀
 
     /**
-     * 演示查单手机号：跑完会打印，可在 /fly/orders 直接输入
+     * 演示入住人手机号：仅作联系方式展示（C 端查单已改为登录归属，不再按手机号查单）
      */
     const DEMO_PHONE = '13800001111';
 
@@ -108,7 +108,10 @@ class FlyDemoSeeder extends Seeder
             Room::whereHas('hotel', function ($q) { $q->where('remark', self::MARK); })->count(),
             Booking::where('source', self::MARK)->count()
         ));
-        $this->command->line('查单演示手机号：' . self::DEMO_PHONE . '（/fly/orders）');
+        $userId = \App\Models\User::query()->value('id');
+        $this->command->line($userId
+            ? '演示订单已绑定到首个注册用户（id=' . $userId . '），登录后访问 /fly/orders 可见'
+            : '当前没有注册用户，演示订单不绑定账号（仅影响房量展示），C 端不可见');
     }
 
     private function clean()
@@ -138,6 +141,9 @@ class FlyDemoSeeder extends Seeder
      */
     private function seedBookings(Carbon $today)
     {
+        // 订单归属登录用户：绑定到首个注册用户（没有则为 null，C 端不可见，仅影响房量）
+        $userId = \App\Models\User::query()->value('id');
+
         $specs = [
             // [酒店名, 房型名, 入住偏移, 离店偏移, 间数, 手机号, 状态, 姓名]
             ['上海南京路云途经济酒店', '单人房', 0, 1, 2, self::DEMO_PHONE, Booking::STATUS_BOOKED, '张伟'],
@@ -184,6 +190,7 @@ class FlyDemoSeeder extends Seeder
 
             Booking::create([
                 'order_no'        => self::ORDER_PREFIX . str_pad((string) $seq, 6, '0', STR_PAD_LEFT),
+                'user_id'         => $userId,
                 'hotel_id'        => $hotel->id,
                 'room_type_id'    => $roomType->id,
                 'room_id'         => isset($rooms[0]) ? $rooms[0] : null,

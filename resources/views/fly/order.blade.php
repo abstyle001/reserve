@@ -1,8 +1,8 @@
 {{--
-    订单详情 = 下单结果页（/fly/orders/{booking}?phone=…）。
+    订单详情 = 下单结果页（/fly/orders/{booking}）。
 
-    凭证是手机号：URL 里没有 token、没有登录态，改别人的手机号只会拿到 404。
-    时间/金额一律走模型访问器（C 端时区 + 千分位），本页不自己 format。
+    归属是当前登录用户（bookings.user_id）：路由叠 auth，控制器校验归属，
+    看别人的单只会拿到 404。时间/金额一律走模型访问器（C 端时区 + 千分位），本页不自己 format。
 --}}
 @extends('fly.layout')
 
@@ -107,8 +107,6 @@
                     <form method="POST" action="{{ route('fly.orders.cancel', $booking) }}"
                           class="mt-6 border-t border-gray-100 pt-5">
                         @csrf
-                        {{-- phone 是归属凭证，必须随表单一起提交：只靠 URL 上的 phone 挡不住直接 POST --}}
-                        <input type="hidden" name="phone" value="{{ $booking->guest_phone }}">
                         <p class="text-xs leading-relaxed text-gray-400">
                             取消后本单占用的 {{ $booking->room_count }} 间房量立即释放，且不可恢复。
                         </p>
@@ -123,7 +121,7 @@
                 @endif
 
                 <p class="mt-4 text-xs leading-relaxed text-gray-400">
-                    请收藏本页链接，或记住订单号 + 手机号 —— 这是查询本单的唯一凭证。
+                    本单已绑定当前登录账号，可在「我的订单」随时查看与取消。
                 </p>
             </aside>
         </div>

@@ -2,8 +2,8 @@
     云途旅行（/fly）C 端外壳：顶栏 + 内容 + 页脚。
 
     独立全屏文档，不复用 layouts/app.blade.php（Breeze 鉴权导航不适用 C 端场景）。
-    「我的订单」两处都指 /fly/orders：C 端订单不属于 Breeze 用户（无 user_id，
-    凭证是 order_no + guest_phone），指回 route('dashboard') 是给后台管理员看的。
+    「我的订单」两处都指 /fly/orders：订单属于登录用户（bookings.user_id），
+    游客点它会被 auth 中间件送去 /login，登录后由 intended() 送回来。
 
     Alpine 相关（x-data / data-fly-config 的局部刷新）见 resources/js/fly/，
     本文件在无 JS 时必须完整可用 —— 渐进增强的下限。

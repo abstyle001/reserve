@@ -38,6 +38,7 @@ class Booking extends Model
 
     protected $fillable = [
         'order_no',
+        'user_id',
         'hotel_id',
         'room_type_id',
         'room_id',
@@ -58,6 +59,7 @@ class Booking extends Model
     ];
 
     protected $casts = [
+        'user_id'      => 'integer',
         'hotel_id'     => 'integer',
         'room_type_id' => 'integer',
         'room_id'      => 'integer',
@@ -106,31 +108,6 @@ class Booking extends Model
             : (string) $this->source;
     }
 
-    /** 姓名脱敏：张三 -> 张*，用于查单列表页 */
-    public function getGuestNameMaskedAttribute()
-    {
-        $name = (string) $this->guest_name;
-        $len  = mb_strlen($name);
-
-        if ($len <= 1) {
-            return $name;
-        }
-
-        return mb_substr($name, 0, 1) . str_repeat('*', $len - 1);
-    }
-
-    /** 手机号脱敏：138****8000 */
-    public function getGuestPhoneMaskedAttribute()
-    {
-        $phone = (string) $this->guest_phone;
-
-        if (strlen($phone) !== 11) {
-            return $phone;
-        }
-
-        return substr($phone, 0, 3) . '****' . substr($phone, -4);
-    }
-
     /**
      * 下单时间文案。app.timezone 是 UTC，直接 format 会给中国用户少 8 小时，
      * C 端展示一律走 config('fly.timezone')（与 generateOrderNo 的号段同一基准）。
@@ -157,6 +134,12 @@ class Booking extends Model
     }
 
     // ----------------------------------------------------------------- 关系
+
+    /** 下单的登录账号；历史单为 null（仅后台可见） */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function hotel()
     {
@@ -193,11 +176,6 @@ class Booking extends Model
         return $query
             ->where('check_in', '<', static::normalizeDate($checkOut))
             ->where('check_out', '>', static::normalizeDate($checkIn));
-    }
-
-    public function scopeForPhone($query, $phone)
-    {
-        return $query->where('guest_phone', $phone);
     }
 
     public function scopeForHotel($query, $hotelId)

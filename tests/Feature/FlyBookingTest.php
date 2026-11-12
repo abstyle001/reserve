@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Hotel;
 use App\Models\Room;
 use App\Models\RoomType;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -13,7 +14,7 @@ use Tests\TestCase;
 /**
  * 下单闭环（POST /fly/bookings）。
  *
- * 全程游客（无 auth）：C 端订单不属于 Breeze 用户，写路由只要 session + CSRF。
+ * 强制登录：订单归属 bookings.user_id（当前登录用户），游客一律被送去 /login。
  * 这里钉三件事：
  *   1) 校验与业务失败的中文提示要落回表单（redirect back + withInput），不是 500；
  *   2) 金额与房量都是下单那一刻的快照，之后改房型价格不影响历史订单；
@@ -34,9 +35,15 @@ class FlyBookingTest extends TestCase
     /** @var int rooms 上有 (hotel_id, room_no) 唯一索引 */
     private $roomSeq = 0;
 
+    /** @var User 下单归属的登录账号 */
+    private $user;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user);
 
         $this->hotel = Hotel::create([
             'name'   => '外滩测试酒店',
@@ -126,7 +133,7 @@ class FlyBookingTest extends TestCase
 
     // ================================================================= 渲染
 
-    public function test_book_page_is_public_and_prefills_the_date_window()
+    public function test_book_page_prefills_the_date_window()
     {
         $this->get('/fly/hotels/' . $this->hotel->id . '/book'
             . '?check_in=' . $this->day(10) . '&check_out=' . $this->day(12) . '&room_type_id=' . $this->roomType->id)
@@ -147,7 +154,7 @@ class FlyBookingTest extends TestCase
 
     // ================================================================= 成功路径
 
-    public function test_guest_can_book_without_login_and_price_is_snapshotted()
+    public function test_logged_in_user_can_book_and_price_is_snapshotted()
     {
         $response = $this->post('/fly/bookings', $this->payload(['room_count' => 2]));
 
@@ -157,6 +164,8 @@ class FlyBookingTest extends TestCase
 
         $this->assertSame(Booking::STATUS_BOOKED, (int) $booking->status);
         $this->assertSame(Booking::SOURCE_FLY, $booking->source);
+        // 订单归属当前登录账号：查单/取消都靠它，不靠手机号
+        $this->assertSame($this->user->id, (int) $booking->user_id);
         $this->assertSame($this->day(5), $booking->check_in);
         $this->assertSame($this->day(7), $booking->check_out);
         $this->assertSame(2, (int) $booking->nights);
@@ -166,8 +175,21 @@ class FlyBookingTest extends TestCase
         $this->assertEquals(3520.0, (float) $booking->total_amount);
         $this->assertMatchesRegularExpression('/^YT\d{12}$/', $booking->order_no);
 
-        // PRG：POST 完跳可收藏的结果页，Location 自带手机号凭证
-        $this->get($response->headers->get('Location'))->assertOk()->assertSee($booking->order_no);
+        // PRG：POST 完跳可收藏的结果页，归属是登录态，URL 不带任何凭证
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringNotContainsString('phone=', $location);
+        $this->get($location)->assertOk()->assertSee($booking->order_no);
+    }
+
+    public function test_guest_is_redirected_to_login()
+    {
+        auth()->logout();
+
+        $this->get('/fly/hotels/' . $this->hotel->id . '/book')->assertRedirect('/login');
+        $this->post('/fly/bookings', $this->payload())->assertRedirect('/login');
+        $this->get('/fly/orders')->assertRedirect('/login');
+
+        $this->assertSame(0, Booking::count(), '游客下单绝不能落库');
     }
 
     public function test_booking_assigns_distinct_rooms_and_reduces_availability()

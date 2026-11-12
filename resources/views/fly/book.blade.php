@@ -114,7 +114,7 @@
                             <div>
                                 <label class="fly-label" for="b-name">入住人姓名</label>
                                 <input id="b-name" class="fly-input{{ $errors->has('guest_name') ? ' fly-input--error' : '' }}"
-                                       type="text" name="guest_name" value="{{ old('guest_name') }}"
+                                       type="text" name="guest_name" value="{{ old('guest_name', Auth::user()->name) }}"
                                        maxlength="30" autocomplete="name" placeholder="与证件一致">
                                 @error('guest_name')<p class="fly-field-error">{{ $message }}</p>@enderror
                             </div>
@@ -122,7 +122,7 @@
                                 <label class="fly-label" for="b-phone">手机号</label>
                                 <input id="b-phone" class="fly-input{{ $errors->has('guest_phone') ? ' fly-input--error' : '' }}"
                                        type="text" name="guest_phone" value="{{ old('guest_phone') }}"
-                                       inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="用于查单，请牢记">
+                                       inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="用于酒店联系">
                                 @error('guest_phone')<p class="fly-field-error">{{ $message }}</p>@enderror
                             </div>
                             <div>
@@ -150,7 +150,7 @@
                         </div>
 
                         <p class="mt-4 text-xs leading-relaxed text-gray-400">
-                            手机号与订单号是您查询、取消订单的唯一凭证（本站订单不绑定登录账号），请填写本人常用号码。
+                            订单将绑定到当前登录账号，下单后可在「我的订单」查看与取消；入住人手机号仅用于酒店联系。
                         </p>
                     </div>
 

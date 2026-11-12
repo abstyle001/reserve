@@ -10,14 +10,14 @@
 预约取号 / 放号系统 + 云途旅行（`/fly`）酒店预订 C 端。
 
 - **后端**：Laravel 8.75（PHP 8）。数据库**本机 `.env` 是 MySQL，测试跑 sqlite `:memory:`** —— 所有 SQL 必须双方言通用（见 §2 的坑位说明）。
-- **鉴权**：Breeze session 登录（`/login`、`/register`、`/logout`）。大屏 `/reserve` 与取号/放号写接口需登录；移动端 `/m`、只读查询接口、以及**整个 `/fly` C 端**公开（顾客不登录，订单凭证是 `订单号 + 手机号`）。
+- **鉴权**：Breeze session 登录（`/login`、`/register`、`/logout`）。大屏 `/reserve` 与取号/放号写接口需登录；移动端 `/m`、只读查询接口公开；`/fly` C 端**浏览公开，下单/查单/取消需登录**（订单归属 `bookings.user_id`）。
 - **前端**：Blade + Alpine.js + Tailwind CSS，走 laravel-mix（webpack）构建。
-- **核心场景**：① 大厅大屏展示取号结果、人工放号，前端 5 秒轮询队列状态；② 顾客在 `/fly` 搜酒店 → 选日期 → 看房量 → 下单 → 凭手机号查单/取消，后台 `/hotels` `/room-types` `/rooms` `/bookings` 维护数据与订单，房型「房量计划」按晚停售控制 C 端各日期的可订间数。
+- **核心场景**：① 大厅大屏展示取号结果、人工放号，前端 5 秒轮询队列状态；② 顾客在 `/fly` 搜酒店 → 选日期 → 看房量 → 登录下单 → 「我的订单」查单/取消，后台 `/hotels` `/room-types` `/rooms` `/bookings` 维护数据与订单，房型「房量计划」按晚停售控制 C 端各日期的可订间数。
 
 ### 非目标
 
 - 不做报表统计、不做多租户隔离、不做 RBAC 多角色（登录即可用）。
-- `/fly` 不做入住核销（`bookings.status` 已预留 3已入住 / 4已退房），不做后台补录下单（第二条写路径），不做登录态会员体系。
+- `/fly` 不做入住核销（`bookings.status` 已预留 3已入住 / 4已退房），不做后台补录下单（第二条写路径），不做手机号注册/短信验证（注册沿用 Breeze 邮箱）。
 
 ---
 
@@ -51,13 +51,13 @@
 app/
   Http/Controllers/Api/
     ReserveController.php      # 取号(add) / 放号(remove) / 查询状态(state) / 排队位置(position) —— 全部业务在此
-    FlyReadController.php      # ⭐ /fly 的 4 个只读 JSON 接口（无 session、无锁、无事务）
+    FlyReadController.php      # ⭐ /fly 的 3 个只读 JSON 接口（无 session、无锁、无事务；查单 JSON 已下线）
     HealthController.php       # 探活示例
   Http/Controllers/
     FlyHomeController.php      # GET /fly 首页（SSR）
     FlyHotelController.php     # GET /fly/hotels/{hotel} 详情（SSR）
     FlyBookingController.php   # ⭐ create=下单页 / store=下单写接口（web 表单，非 JSON）
-    FlyOrderController.php     # index=手机号查单 / show=订单详情=下单结果页 / cancel=取消
+    FlyOrderController.php     # index=我的订单（登录用户的单）/ show=订单详情=下单结果页 / cancel=取消，均校验 user_id
     BookingAdminController.php # 后台 /bookings 列表 / 详情 / 取消（需登录）
     HotelController.php RoomTypeController.php RoomController.php   # 后台三级 CRUD
     RoomInventoryController.php # ⭐ 房量计划：按晚停售的展示 / 设置 / 恢复（与 /fly 日期筛选联动）
@@ -234,7 +234,7 @@ tailwind.config.js             # content 已覆盖 resources/views/** 与 resour
 
 ### `/api/fly/*` — 云途 C 端只读接口（全部公开）
 
-四条都在 `routes/api.php`，`api` 中间件组：**无 session、不加锁、不开事务**。
+三条都在 `routes/api.php`，`api` 中间件组：**无 session、不加锁、不开事务**。
 响应外壳与 `ReserveController` 逐字同构（`{code, message, data, errors}`；`0` 成功 / `1` 业务失败 / `422` 校验 / `500` 兜底）。
 
 ```
@@ -243,15 +243,15 @@ GET /api/fly/hotels?city&q&check_in&check_out&sort&page
                                                      → data: {items[card], total, per_page, current_page, last_page, facets}
 GET /api/fly/hotels/{hotel}/room-types?check_in&check_out
                                                      → data: {hotel{card}, check_in, check_out, nights, items[房型+remaining]}
-GET /api/fly/bookings?phone[&order_no]               → data: {items[订单], phone}
 ```
 
 - `card` 由 `HotelSearchService::formatCard()` 产出，**Blade 循环与 JSON 同一个函数、键名一字不差**；
   `grad_index`（`$index % 8 + 1`）必须后端下发，否则 SSR 与 Alpine 两次渲染底色不一致。
 - 下架酒店：模型绑定查得到，但内容不能出 —— 页面 `404`，接口 `code:1` + 「酒店不存在或已下架」。
-- `data.items` 里的姓名/手机号是**脱敏后**的（`张*` / `137****0000`）；`data.phone` 回显用户输入的查询号（本来就是他自己输的）。
 - **只读 GET 只在 api.php 注册一次，web.php 不许出现同名 URI**，否则后加载的 web 组会遮蔽 api 组。
 - **下单/取消绝不放这里**：写操作只在 `routes/web.php` 的 `/fly` 组（web 组自带 session + CSRF，走 Blade 表单 + redirect）。理由同 §5 顶部那条中间件排序坑。
+- **查单 JSON（`/api/fly/bookings`）已下线**：只凭手机号即可列单是越权漏洞（任何人输别人手机号即可见其订单）。
+  订单查询改走 `/fly/orders`（web 组 + auth），归属 `bookings.user_id`。
 
 ---
 
@@ -328,24 +328,27 @@ GET /api/fly/bookings?phone[&order_no]               → data: {items[订单], p
 
 | 类别 | 位置 | 中间件 | 说明 |
 |---|---|---|---|
-| 只读 JSON（4 条） | `routes/api.php` | `api` | 无 session、无锁、不开事务 |
-| C 端页面 + 写操作 | `routes/web.php` 的 `fly` 组 | `web`（**不加 `auth`**） | 顾客全程不登录 |
+| 只读 JSON（3 条） | `routes/api.php` | `api` | 无 session、无锁、不开事务 |
+| C 端浏览页 | `routes/web.php` 的 `fly` 组 | `web`（**不加 `auth`**） | 首页 / 详情页公开 |
+| C 端下单 + 订单 | `routes/web.php` 的 `fly` 组 | `web` + `auth` | 订单归属 `bookings.user_id` |
 | 后台订单 | `routes/web.php` | `web` + `auth` | `/bookings*` |
 
 ```
-GET  /fly                                 fly.home              首页（搜索 + 卡片）
-GET  /fly/hotels/{hotel}                  fly.hotels.show       详情 + 房型房量
-GET  /fly/hotels/{hotel}/book             fly.book              下单页
-POST /fly/bookings                        fly.bookings.store    下单（写，Blade 表单）
-GET  /fly/orders                          fly.orders            手机号查单
-GET  /fly/orders/{booking}?phone=         fly.orders.show       订单详情 = 下单结果页
-POST /fly/orders/{booking}/cancel         fly.orders.cancel     取消（写）
+GET  /fly                                 fly.home              首页（搜索 + 卡片）—— 公开
+GET  /fly/hotels/{hotel}                  fly.hotels.show       详情 + 房型房量 —— 公开
+GET  /fly/hotels/{hotel}/book             fly.book              下单页 —— 需登录
+POST /fly/bookings                        fly.bookings.store    下单（写，Blade 表单）—— 需登录
+GET  /fly/orders                          fly.orders            我的订单（当前用户的单）—— 需登录
+GET  /fly/orders/{booking}                fly.orders.show       订单详情 = 下单结果页 —— 需登录 + 归属校验
+POST /fly/orders/{booking}/cancel         fly.orders.cancel     取消（写）—— 需登录 + 归属校验
 ```
 
 - **写操作走 Blade 表单 `@csrf` + redirect，不暴露 C 端写 JSON 接口**（与后台全站 redirect 风格
   一致，也避开 axios 0.21 的 DELETE body 坑）。取消用 POST 不用 DELETE。
+- 游客点「预订」/「我的订单」被 `auth` 送去 `/login`，登录成功后由 `intended()` 送回原目标
+  （GET 的 query string 一并保留，日期窗口不丢）。
 - 「我的订单」两处（`@auth` / `@else` 分支）都指 `/fly/orders`，**不是 `route('dashboard')`** ——
-  那是后台首页；登录的后台账号在 C 端本来就不该看到订单。
+  那是后台首页；C 端订单页只列当前账号自己的单，后台账号在 C 端看到的也是它个人的单。
 - `RouteServiceProvider::HOME = '/fly'`：Breeze 登录/注册的落地页是云途 C 端首页（站内所有「首页」
   都指 `route('fly.home')`）。不要改成 `'/'`（Laravel 原版欢迎页，只有文档外链），`ReserveAuthTest` 守这条。
 - HOME 只管「直接访问 /login」的落点：被 guest 中间件拦下的请求登录后由 `intended()` 送回原目标，
@@ -393,12 +396,15 @@ POST /fly/orders/{booking}/cancel         fly.orders.cancel     取消（写）
   ↔ `store.buildUrl()`。日期窗口必须一路带进详情/下单链接，否则点进去房量口径跳回「今晚一晚」。
 - 只有 `hotel` tab 有数据，其余 tab 是纯本地态 —— 给它们跳 URL 会造出 404/空页。
 
-### 7.6 订单归属与脱敏
+### 7.6 订单归属
 
-- **C 端订单不属于 Breeze 用户**：`bookings` 没有 `user_id`，凭证是 `订单号 + guest_phone`。
-- 手机号不符一律 **404 而不是 403**：403 等于对外确认「这个订单号存在」。
-- 查单接口/页面只返回该手机号的单，`limit(50)`（页面侧 `LIST_LIMIT` 同）防止拿别人的号爬。
-- JSON 输出走 `guest_name_masked` / `guest_phone_masked`；页面展示可以全量（那是本人凭号查询）。
+- **C 端订单属于登录用户**：`bookings.user_id` 在下单时由 `FlyBookingController::store()` 写入当前账号；
+  列表 / 详情 / 取消全部按它过滤与校验（`FlyOrderController::abortUnlessOwner()`）。
+- 归属不符一律 **404 而不是 403**：403 等于对外确认「这个订单号存在」。`user_id` 为 NULL 的
+  历史单（手机号凭证时代的数据）任何人 404，仅后台 `/bookings` 可见可取消 —— 不做归属回填。
+- `guest_name` / `guest_phone` 只是**入住人联系方式**（登录账号 ≠ 入住人），不再是任何凭证；
+  下单表单仍收集并校验手机号格式。脱敏访问器已随查单 JSON 一起删除（没人再输出它们）。
+- 列表 `limit(50)`（`FlyOrderController::LIST_LIMIT`）只是输出兜底，正常账号到不了。
 
 ---
 
@@ -481,8 +487,8 @@ php artisan serve
 - 现有测试参考：`tests/Feature/ReserveStateTest.php`（覆盖取号→状态→放号→换批全链路）、`tests/Feature/ReservePositionTest.php`（移动端排队查询：前面人数 / 已办结 / 换批后旧号 not_found / 只读无副作用）、`tests/Feature/ReserveAuthTest.php`（页面级鉴权：大屏跳登录、/m 与只读接口公开）。
 - 云途 C 端测试（同为 `RefreshDatabase` + sqlite `:memory:`）：
   - `FlyAvailabilityTest` — 城市精确匹配、关键词命中 tags 且转义 `%_\`、日期重叠扣减、**边界相邻不冲突**（半开区间）、已取消释放 / 已入住仍占用、下架酒店页面 404 与接口 `code:1`、页码越界回落、脏日期夹紧、**`DB::listen` 钉住 5 条查询**。
-  - `FlyBookingTest` — 游客可下单（无 auth）、金额/晚数/单价快照、PRG 结果页可用自己的手机号打开、超量拒绝、售罄、跨酒店 `room_type_id` 越权、日期与手机号规则中文提示、同一 `idempotency_key` 只产生 1 单。
-  - `FlyOrderAccessTest` — 按手机号只列自己的单、无 phone 与「查过但没有」的区别、详情凭手机号（错号 404 不是 403）、取消是软释放且重复取消被拒、JSON 脱敏。
+  - `FlyBookingTest` — 登录下单绑定 `user_id`、游客一律 302 去 /login、金额/晚数/单价快照、PRG 结果页（URL 无凭证）、超量拒绝、售罄、跨酒店 `room_type_id` 越权、日期与手机号规则中文提示、同一 `idempotency_key` 只产生 1 单。
+  - `FlyOrderAccessTest` — 只列当前账号的单、他人详情/取消 404（不是 403）、`user_id` 为 NULL 的历史单任何人 404、取消是软释放且重复取消被拒、查单 JSON 已下线（404）。
   - `FlyBookingAdminTest` — 后台 `/bookings` 需登录、列表/详情/取消。
   - `RoomTypeBlockTest` — 房量计划：停售只作用在停售的晚（半开区间）、多晚查询取各晚 max 不取 sum、
     停售挡住超卖但放行余量、搜索列表同样扣减、后台设置/覆盖/恢复实时反映到 C 端、越权 404 与表单校验。
@@ -536,4 +542,4 @@ php artisan serve
 
 ---
 
-*最后更新：2026-10-26（新增房量计划：`room_type_blocks` 按晚停售表 + `RoomInventoryController` 后台页面，库存口径扩为「可订 = 非停用房间数 − 重叠有效订单 − 各晚停售 max」，搜索列表恒定查询 5 → 6 条，见 §7.2；此前为 2026-10-22 的云途 C 端接入与 §4 样式订正）*
+*最后更新：2026-11-12（订单改登录归属：`bookings.user_id` + 下单/查单/取消强制登录，废弃「手机号即凭证」，下线 `/api/fly/bookings`，见 §7.3 / §7.6；此前为 2026-10-26 的房量计划 `room_type_blocks`，见 §7.2）*

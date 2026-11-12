@@ -121,8 +121,6 @@
                         <a href="{{ route('hotels.rooms.index', $booking->hotel_id) }}" class="admin-action">管理「{{ $booking->hotel->name }}」的房间</a>
                         <a href="{{ route('fly.hotels.show', $booking->hotel_id) }}" target="_blank" rel="noopener" class="admin-action block">在前台查看这家酒店</a>
                     @endif
-                    <a href="{{ route('fly.orders') }}?phone={{ rawurlencode((string) $booking->guest_phone) }}"
-                       target="_blank" rel="noopener" class="admin-action block">以顾客视角查这个手机号</a>
                 </div>
             </div>
 

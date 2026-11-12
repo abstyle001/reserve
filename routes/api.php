@@ -28,15 +28,13 @@ Route::get('/reserve/position', [ReserveController::class, 'position']);
 // 注意：取号 / 放号（POST/DELETE /api/reserve）不在此文件。
 // 它们要求 session 登录态，定义在 routes/web.php（同名 URI），见该文件注释。
 
-// 云途旅行（/fly）只读接口：顾客不登录，全部公开，纯 SELECT 无锁无事务。
-// ⚠️ 这 4 个 URI 在 web.php 里不能重复出现，否则后加载的 web 组会遮蔽 api 组。
-// 下单 / 取消等写操作同样在 web.php（要 session + CSRF）。
+// 云途旅行（/fly）只读接口：浏览公开，纯 SELECT 无锁无事务。
+// ⚠️ 这 3 个 URI 在 web.php 里不能重复出现，否则后加载的 web 组会遮蔽 api 组。
+// 查单 JSON（/api/fly/bookings）已下线：只凭手机号即可列单是越权漏洞；
+// 下单/查单/取消都在 web.php 的 /fly 组（需登录，见该文件注释）。
 Route::get('/fly/cities', [FlyReadController::class, 'cities']);
 Route::get('/fly/hotels', [FlyReadController::class, 'hotels']);
 Route::get('/fly/hotels/{hotel}/room-types', [FlyReadController::class, 'roomTypes']);
-// 查单 JSON 额外叠 throttle:fly-query（10 次/分钟，比 api 组默认 60 严）：
-// 响应虽脱敏，但不限流仍可被用来遍历手机号探测订单。
-Route::get('/fly/bookings', [FlyReadController::class, 'bookings'])->middleware('throttle:fly-query');
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
