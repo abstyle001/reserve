@@ -27,14 +27,24 @@ Route::get('/fly/hotels/{hotel}', [\App\Http\Controllers\FlyHotelController::cla
 
 // 下单页 + 写接口：POST /fly/bookings 走 web 组拿 session + CSRF，但同样不加 auth —— 顾客不登录。
 // 校验失败/房量不足一律 back() 回表单带中文提示，不返回 JSON。
+// throttle:fly-write 按 IP+路由名限 10 次/分钟，挡脚本批量占房（顾客不登录，只能按 IP 限）。
 Route::get('/fly/hotels/{hotel}/book', [\App\Http\Controllers\FlyBookingController::class, 'create'])->name('fly.book');
-Route::post('/fly/bookings', [\App\Http\Controllers\FlyBookingController::class, 'store'])->name('fly.bookings.store');
+Route::post('/fly/bookings', [\App\Http\Controllers\FlyBookingController::class, 'store'])
+    ->middleware('throttle:fly-write')
+    ->name('fly.bookings.store');
 
 // 订单：/fly/orders 手机号查单 + /fly/orders/{booking} 详情（兼任下单结果页）。
 // 取消是 POST（不是 DELETE）：与后台全站表单风格一致，也让浏览器原生表单能直接提交。
-Route::get('/fly/orders', [\App\Http\Controllers\FlyOrderController::class, 'index'])->name('fly.orders');
-Route::get('/fly/orders/{booking}', [\App\Http\Controllers\FlyOrderController::class, 'show'])->name('fly.orders.show');
-Route::post('/fly/orders/{booking}/cancel', [\App\Http\Controllers\FlyOrderController::class, 'cancel'])->name('fly.orders.cancel');
+// throttle:fly-query 限 10 次/分钟：查单靠手机号即可列表，不限流可被遍历探测别人订单。
+Route::get('/fly/orders', [\App\Http\Controllers\FlyOrderController::class, 'index'])
+    ->middleware('throttle:fly-query')
+    ->name('fly.orders');
+Route::get('/fly/orders/{booking}', [\App\Http\Controllers\FlyOrderController::class, 'show'])
+    ->middleware('throttle:fly-query')
+    ->name('fly.orders.show');
+Route::post('/fly/orders/{booking}/cancel', [\App\Http\Controllers\FlyOrderController::class, 'cancel'])
+    ->middleware('throttle:fly-write')
+    ->name('fly.orders.cancel');
 
 // 预约取号 / 放号大屏控制台（单页），登录后可用
 Route::get('/reserve', function () {

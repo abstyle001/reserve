@@ -66,5 +66,16 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
         });
+
+        // 云途 C 端（/fly）限流：顾客全程不登录，凭证是「订单号 + 手机号」，
+        // 不限流就能遍历手机号/订单号探测别人订单、或脚本批量占房。
+        // 按 IP + 路由名分桶：下单与取消各自计数，互不挤占。
+        RateLimiter::for('fly-write', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip() . '|' . optional($request->route())->getName());
+        });
+
+        RateLimiter::for('fly-query', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip() . '|' . optional($request->route())->getName());
+        });
     }
 }

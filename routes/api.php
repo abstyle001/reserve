@@ -34,7 +34,9 @@ Route::get('/reserve/position', [ReserveController::class, 'position']);
 Route::get('/fly/cities', [FlyReadController::class, 'cities']);
 Route::get('/fly/hotels', [FlyReadController::class, 'hotels']);
 Route::get('/fly/hotels/{hotel}/room-types', [FlyReadController::class, 'roomTypes']);
-Route::get('/fly/bookings', [FlyReadController::class, 'bookings']);
+// 查单 JSON 额外叠 throttle:fly-query（10 次/分钟，比 api 组默认 60 严）：
+// 响应虽脱敏，但不限流仍可被用来遍历手机号探测订单。
+Route::get('/fly/bookings', [FlyReadController::class, 'bookings'])->middleware('throttle:fly-query');
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
