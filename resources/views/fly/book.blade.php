@@ -150,7 +150,8 @@
                         </div>
 
                         <p class="mt-4 text-xs leading-relaxed text-gray-400">
-                            订单将绑定到当前登录账号，下单后可在「我的订单」查看与取消；入住人手机号仅用于酒店联系。
+                            订单将绑定到当前登录账号，下单后可在「我的订单」查看；入住人手机号仅用于酒店联系。
+                            {{ \App\Models\Booking::cancelPolicyText() }}，逾期请联系酒店处理。
                         </p>
                     </div>
 

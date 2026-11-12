@@ -133,6 +133,41 @@ class Booking extends Model
         return static::moneyText($this->price);
     }
 
+    /**
+     * 自助取消截止时刻 = 入住前一日的 config('fly.cancel_deadline_time')，C 端时区。
+     * check_in 是 'Y-m-d' 字符串，拼上时刻直接 parse —— 不给它加 date cast（见类注释）。
+     */
+    public function getCancelDeadlineAttribute()
+    {
+        return Carbon::parse($this->check_in . ' ' . config('fly.cancel_deadline_time'), config('fly.timezone'))
+            ->subDay();
+    }
+
+    /**
+     * 能否自助取消：只有「已预订」且未到截止时刻的单可以。整点即截止（18:00:00 算逾期）。
+     * 当天入住的单同样受约束：20:00 订今晚，下单那一刻就已经过点。
+     * 后台 /bookings 的人工取消不看这条，那是逾期后的兜底通道。
+     */
+    public function getCanCancelAttribute()
+    {
+        if ($this->status !== self::STATUS_BOOKED) {
+            return false;
+        }
+
+        return Carbon::now(config('fly.timezone'))->lt($this->cancel_deadline);
+    }
+
+    public function getCancelDeadlineTextAttribute()
+    {
+        return $this->cancel_deadline->format('Y-m-d H:i');
+    }
+
+    /** 取消政策一句话：下单页 / 订单页 / 列表页共用，时刻只有 config 一个出处 */
+    public static function cancelPolicyText()
+    {
+        return '入住前一日 ' . config('fly.cancel_deadline_time') . ' 前可自助取消';
+    }
+
     // ----------------------------------------------------------------- 关系
 
     /** 下单的登录账号；历史单为 null（仅后台可见） */

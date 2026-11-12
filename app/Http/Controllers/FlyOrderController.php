@@ -50,12 +50,20 @@ class FlyOrderController extends Controller
     /**
      * 取消订单。POST + 登录归属校验，取消是软状态流转：
      * 行不删，scopeActive 自动把它剔出占用集合 → 房量立刻释放且历史可查。
+     * 自助取消受时限约束（入住前一日 config('fly.cancel_deadline_time')），逾期只能走后台人工取消。
      */
     public function cancel(Request $request, Booking $booking)
     {
         $this->abortUnlessOwner($request, $booking);
 
         $target = route('fly.orders.show', $booking);
+
+        // 时限只对「已预订」的单拦；已取消/已入住仍由下面的条件 UPDATE 给「无需重复操作」，
+        // 免得把状态问题误报成时限问题。
+        if ($booking->status === Booking::STATUS_BOOKED && !$booking->can_cancel) {
+            return redirect()->to($target)
+                ->with('flyFlashError', '已过自助取消截止时间（' . $booking->cancel_deadline_text . '），请联系酒店 95010 处理。');
+        }
 
         // 条件更新代替「读-改-写」：sqlite 下 lockForUpdate 是语法级 no-op，
         // 而 where status=已预订 的 UPDATE 本身是原子的，两人同时点也只有一人改到行。

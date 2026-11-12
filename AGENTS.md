@@ -17,7 +17,7 @@
 ### 非目标
 
 - 不做报表统计、不做多租户隔离、不做 RBAC 多角色（登录即可用）。
-- `/fly` 不做入住核销（`bookings.status` 已预留 3已入住 / 4已退房），不做后台补录下单（第二条写路径），不做手机号注册/短信验证（注册沿用 Breeze 邮箱）。
+- `/fly` 不做后台补录下单（第二条写路径），不做手机号注册/短信验证（注册沿用 Breeze 邮箱）。入住/退房核销已在后台 `/bookings` 落地（见 §7.2），C 端本身仍无核销入口。
 
 ---
 
@@ -57,8 +57,8 @@ app/
     FlyHomeController.php      # GET /fly 首页（SSR）
     FlyHotelController.php     # GET /fly/hotels/{hotel} 详情（SSR）
     FlyBookingController.php   # ⭐ create=下单页 / store=下单写接口（web 表单，非 JSON）
-    FlyOrderController.php     # index=我的订单（登录用户的单）/ show=订单详情=下单结果页 / cancel=取消，均校验 user_id
-    BookingAdminController.php # 后台 /bookings 列表 / 详情 / 取消（需登录）
+    FlyOrderController.php     # index=我的订单（登录用户的单）/ show=订单详情=下单结果页 / cancel=取消（受时限约束），均校验 user_id
+    BookingAdminController.php # 后台 /bookings 列表 / 详情 / 取消 / 入住退房核销
     HotelController.php RoomTypeController.php RoomController.php   # 后台三级 CRUD
     RoomInventoryController.php # ⭐ 房量计划：按晚停售的展示 / 设置 / 恢复（与 /fly 日期筛选联动）
   Models/
@@ -74,7 +74,7 @@ app/
     BookingRejectedException.php  # 房量业务拒绝（售罄 / 仅剩 N 间 / 房型跨酒店 / 酒店停业），转中文表单错误
 config/
   reserve.php                  # 队列选项（RESERVE_QUEUE_OPTIONS 环境变量，逗号分隔）
-  fly.php                      # ⭐ C 端业务参数（见 §7.1，时区/分页/上限/热门关键词）
+  fly.php                      # ⭐ C 端业务参数（见 §7.1，时区/分页/上限/取消时限/热门关键词）
 database/migrations/           # 增量迁移，字段定义以最终 schema 为准
 database/seeders/
   FlyDemoSeeder.php            # ⭐ 仅 local 的演示数据（酒店/房型/房间），文件名已标 demo
@@ -285,7 +285,8 @@ GET /api/fly/hotels/{hotel}/room-types?check_in&check_out
 ### 7.1 配置与时区基准
 
 `config/fly.php`（写法照 `config/reserve.php`）：`timezone`(Asia/Shanghai) / `per_page`(6) /
-`city_limit`(8) / `max_nights`(30) / `max_rooms`(10) / `max_days_ahead`(365) / `hot_keywords`。
+`city_limit`(8) / `max_nights`(30) / `max_rooms`(10) / `max_days_ahead`(365) /
+`cancel_deadline_time`(18:00，见 §7.7) / `hot_keywords`。
 
 - **C 端所有「今天 / 日期上下界」以 `config('fly.timezone')` 为准**，不要裸用 `now()`：全局
   `app.timezone` 是 UTC，中国用户早上 8 点前会少一天。展示时间也走模型访问器
@@ -302,9 +303,10 @@ GET /api/fly/hotels/{hotel}/room-types?check_in&check_out
 - **半开区间 `[check_in, check_out)`**：入住当天算一晚、离店当天不算。于是
   「A 的 check_out == B 的 check_in」天然不冲突，边界不需要 +1 天特例。重叠判定唯一出处：
   `Booking::scopeOverlapping($in, $out)` = `check_in < $out && check_out > $in`。
-- **占用只认 `scopeActive()` = `status IN (1 已预订, 3 已入住)`**。将来加核销入住时不改库存口径、
-  不改查询，只多一次状态流转。取消是软状态（`status=2` + `cancelled_at`），行不删，
-  `scopeActive` 自动把它剔出占用集合 → 房量立刻释放且历史可查。
+- **占用只认 `scopeActive()` = `status IN (1 已预订, 3 已入住)`**。入住/退房核销已在后台
+  `/bookings` 落地（`BookingAdminController::checkIn/checkOut`，条件 UPDATE 走
+  1→3→4 状态机）：入住不改库存口径（1 和 3 都占用），退房与取消同为软释放
+  （`status=4` / `2`，行不删），`scopeActive` 自动把它们剔出占用集合 → 房量立刻释放且历史可查。
 - **按晚停售（`room_type_blocks`，后台「房量计划」）**：一行 = 某房型某晚停售 N 间，
   不占具体房间号。停售晚同属半开区间（`night_date ∈ [check_in, check_out)`），
   判定唯一出处是 `RoomTypeBlock::scopeBetween()`。**取各晚的 max 不取 sum**：
@@ -406,6 +408,20 @@ POST /fly/orders/{booking}/cancel         fly.orders.cancel     取消（写）�
   下单表单仍收集并校验手机号格式。脱敏访问器已随查单 JSON 一起删除（没人再输出它们）。
 - 列表 `limit(50)`（`FlyOrderController::LIST_LIMIT`）只是输出兜底，正常账号到不了。
 
+### 7.7 自助取消时限
+
+- **截止时刻 = 入住前一日的 `config('fly.cancel_deadline_time')`（默认 18:00，C 端时区）**，
+  整点即截止（18:00:00 算逾期）。判定唯一出处是 `Booking::getCanCancelAttribute()`
+  （status=1 且 now < 截止）；展示走 `cancel_deadline_text` 访问器与 `Booking::cancelPolicyText()`，
+  **Blade 不自己拼时刻**，否则下单页/列表页/详情页会各说一个点。
+- **当天入住的单同样受约束**：20:00 订今晚 = 下单那一刻就已逾期，不给宽限期（产品决策）。
+  所以下单页、我的订单、订单详情三处都提前告知政策；逾期详情页不渲染取消表单，
+  只给截止时间与客服电话 —— 留着按钮只会让用户点了才知道失败。
+- **只约束 C 端自助取消**：`FlyOrderController::cancel` 在归属校验后、条件 UPDATE 前拦逾期；
+  后台 `/bookings` 人工取消不看时限，那是逾期后顾客打电话来的兜底通道。
+- 提示分流：已取消/已入住仍给「无需重复操作」，只有「已预订且逾期」才给截止文案 ——
+  别把状态问题说成时限问题（`FlyCancelDeadlineTest` 钉了这条）。
+
 ---
 
 ## 8. 前端模块约定（预约大屏）
@@ -489,7 +505,11 @@ php artisan serve
   - `FlyAvailabilityTest` — 城市精确匹配、关键词命中 tags 且转义 `%_\`、日期重叠扣减、**边界相邻不冲突**（半开区间）、已取消释放 / 已入住仍占用、下架酒店页面 404 与接口 `code:1`、页码越界回落、脏日期夹紧、**`DB::listen` 钉住 5 条查询**。
   - `FlyBookingTest` — 登录下单绑定 `user_id`、游客一律 302 去 /login、金额/晚数/单价快照、PRG 结果页（URL 无凭证）、超量拒绝、售罄、跨酒店 `room_type_id` 越权、日期与手机号规则中文提示、同一 `idempotency_key` 只产生 1 单。
   - `FlyOrderAccessTest` — 只列当前账号的单、他人详情/取消 404（不是 403）、`user_id` 为 NULL 的历史单任何人 404、取消是软释放且重复取消被拒、查单 JSON 已下线（404）。
-  - `FlyBookingAdminTest` — 后台 `/bookings` 需登录、列表/详情/取消。
+  - `FlyCancelDeadlineTest` — 自助取消时限：截止前放行 / 截止后拒绝且不动状态与房量、整点边界、
+    当天单下单即逾期、时区基准（UTC 10:30 == C 端 18:30）、config 改时刻即生效、
+    后台人工取消不受限、逾期详情页不渲染取消表单、下单页与列表页告知政策。
+  - `FlyBookingAdminTest` — 后台 `/bookings` 需登录、列表/详情/取消、入住/退房核销
+    （1→3 占用不变、3→4 软释放、非法流转与重复操作全部被条件 UPDATE 拒掉）。
   - `RoomTypeBlockTest` — 房量计划：停售只作用在停售的晚（半开区间）、多晚查询取各晚 max 不取 sum、
     停售挡住超卖但放行余量、搜索列表同样扣减、后台设置/覆盖/恢复实时反映到 C 端、越权 404 与表单校验。
 - 测试里造日期用**相对日期**（`Carbon::now(config('fly.timezone'))->addDays(n)`），别硬编码
@@ -539,7 +559,9 @@ php artisan serve
 | 验证写路径时以为「报错没提示」 | 探针构造得不合法，压根没进到业务拒绝分支 | 用超量 `room_count` 触发 `BookingRejectedException`，能看到 `fly-flash--err` 中文提示 |
 | 搜索栏日期框「框中框」并溢出圆角、按钮文字竖排成一列 | ① `@tailwindcss/forms` 给 input 上了独立盒子；② `1fr` 轨的自动最小宽度 = 内容 min-content（input ~180px），轨道塞不下时最窄的那条（`auto` 的按钮）先被压扁 | 见 §4「样式（`fly-*` 组件）」三条：清盒子外观 / 轨道写 `minmax(0,…)` / 按钮 `whitespace-nowrap`；日期格靠 `flex-wrap` + `min-h` 长高而不是溢出 |
 | 桌面端布局改完只在窄屏看过（以为没问题） | Qoder 内置浏览器面板宽度有限，且不可见时 `take_screenshot` 直接报 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE` | 用 `msedge --headless --screenshot --window-size=1440,900 <url>` 逐尺寸截图（**每个尺寸换一个新的 `--user-data-dir`**，复用会静默不出图），390 / 640 / 820 / 1200 / 1440 各一张，再加 `--blink-settings=scriptsEnabled=false` 验一遍 JS 关闭态 |
+| 需要登录态的页面没法用无头截图 | `--screenshot` 一次性模式不会登录，`/fly/orders*` 只会截到登录页 | 起 `msedge --headless=new --remote-debugging-port` + Node CDP（Node 22+ 自带 `WebSocket`）：先 `Runtime.evaluate` 填表登录，再逐页 `Emulation.setDeviceMetricsOverride` + `Page.captureScreenshot`；内置面板不可见时 `evaluate_script` 仍可做 DOM/布局探针 |
+| 冻结时间后测试断言的日期对不上 | `Carbon::setTestNow` 之后 `day(n)` 这类相对偏移会跟着「现在」一起漂，第二次 `freezeAt(day(4))` 实际冻到了 day(8) | 断言与冻结用的截止日从 `check_in` 推（`FlyCancelDeadlineTest::cutoffDay()`），别在冻结后再算相对偏移 |
 
 ---
 
-*最后更新：2026-11-12（订单改登录归属：`bookings.user_id` + 下单/查单/取消强制登录，废弃「手机号即凭证」，下线 `/api/fly/bookings`，见 §7.3 / §7.6；此前为 2026-10-26 的房量计划 `room_type_blocks`，见 §7.2）*
+*最后更新：2026-11-12（C 端自助取消加时限：入住前一日 `fly.cancel_deadline_time` 后不可自助取消，后台人工取消不受限，见 §7.7；此前为后台 `/bookings` 落地入住/退房核销：`bookings.status` 1→3→4 状态机，库存口径不变，见 §7.2）*

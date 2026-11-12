@@ -104,16 +104,28 @@
                 </div>
 
                 @if ($booking->status === \App\Models\Booking::STATUS_BOOKED)
-                    <form method="POST" action="{{ route('fly.orders.cancel', $booking) }}"
-                          class="mt-6 border-t border-gray-100 pt-5">
-                        @csrf
-                        <p class="text-xs leading-relaxed text-gray-400">
-                            取消后本单占用的 {{ $booking->room_count }} 间房量立即释放，且不可恢复。
-                        </p>
-                        <button type="submit" class="fly-btn-outline mt-3 w-full justify-center text-red-600 hover:border-red-300">
-                            取消订单
-                        </button>
-                    </form>
+                    @if ($booking->can_cancel)
+                        <form method="POST" action="{{ route('fly.orders.cancel', $booking) }}"
+                              class="mt-6 border-t border-gray-100 pt-5">
+                            @csrf
+                            <p class="text-xs leading-relaxed text-gray-400">
+                                取消后本单占用的 {{ $booking->room_count }} 间房量立即释放，且不可恢复。
+                                自助取消截止 {{ $booking->cancel_deadline_text }}。
+                            </p>
+                            <button type="submit" class="fly-btn-outline mt-3 w-full justify-center text-red-600 hover:border-red-300">
+                                取消订单
+                            </button>
+                        </form>
+                    @else
+                        {{-- 逾期不给表单：按钮留着只会让用户点了才知道失败，时限判定在服务端也拦一道 --}}
+                        <div class="mt-6 border-t border-gray-100 pt-5">
+                            <p class="text-xs leading-relaxed text-gray-400">
+                                已过自助取消截止时间（{{ $booking->cancel_deadline_text }}），本单 {{ $booking->room_count }} 间房量继续保留。
+                                如需取消请联系酒店 95010，由后台人工处理。
+                            </p>
+                            <span class="fly-btn-outline mt-3 w-full cursor-default justify-center opacity-60">已过取消时限</span>
+                        </div>
+                    @endif
                 @else
                     <p class="mt-6 border-t border-gray-100 pt-5 text-xs text-gray-400">
                         本单状态为「{{ $booking->status_label }}」，无需再操作。
@@ -121,7 +133,7 @@
                 @endif
 
                 <p class="mt-4 text-xs leading-relaxed text-gray-400">
-                    本单已绑定当前登录账号，可在「我的订单」随时查看与取消。
+                    本单已绑定当前登录账号，可在「我的订单」随时查看。{{ \App\Models\Booking::cancelPolicyText() }}。
                 </p>
             </aside>
         </div>

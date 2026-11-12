@@ -36,7 +36,7 @@
                     </svg>
                 </span>
                 <p class="fly-empty__title">你还没有订单</p>
-                <p class="fly-empty__sub">下单后订单会绑定到当前登录账号，在这里随时查看与取消。</p>
+                <p class="fly-empty__sub">下单后订单会绑定到当前登录账号，在这里随时查看与管理。</p>
                 <div class="mt-5">
                     <a href="{{ route('fly.home') }}" class="fly-btn-primary">去挑一家酒店</a>
                 </div>
@@ -92,7 +92,7 @@
                         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
                     </svg>
                 </span>
-                取消后房量即时释放
+                {{ \App\Models\Booking::cancelPolicyText() }}
             </div>
             <div class="fly-promise__item">
                 <span class="fly-promise__icon">

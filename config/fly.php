@@ -24,6 +24,11 @@ return [
     'max_rooms'  => (int) env('FLY_MAX_ROOMS', 10),
     'max_days_ahead' => (int) env('FLY_MAX_DAYS_AHEAD', 365),
 
+    // 自助取消截止时刻（格式 H:i，基准是上面的 timezone）：入住前一日的这个点之后
+    // C 端不能再自助取消，只能联系酒店处理。当天入住的单同样受约束 —— 20:00 订今晚
+    // 就已经过点，下单前由 Booking::cancelPolicyText() 告知。后台 /bookings 人工取消不受此限。
+    'cancel_deadline_time' => env('FLY_CANCEL_DEADLINE_TIME', '18:00'),
+
     // 热门搜索 chip，半角逗号分隔（与 RESERVE_QUEUE_OPTIONS 同一套写法）
     'hot_keywords' => array_values(array_filter(array_map(
         'trim',
