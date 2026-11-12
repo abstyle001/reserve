@@ -90,11 +90,13 @@ Route::middleware('auth')->group(function () {
     Route::post('hotels/{hotel}/room-types/{roomType}/inventory', [\App\Http\Controllers\RoomInventoryController::class, 'store'])->name('hotels.room-types.inventory.store');
     Route::delete('hotels/{hotel}/room-types/{roomType}/inventory/{block}', [\App\Http\Controllers\RoomInventoryController::class, 'destroy'])->name('hotels.room-types.inventory.destroy');
 
-    // C 端预订订单：只读列表 + 取消。不用 Route::resource —— 这里没有增删改，
+    // C 端预订订单：只读列表 + 取消 + 入住/退房核销。不用 Route::resource —— 这里没有增删改，
     // resource 会注册出 7 条指向不存在方法的路由，route:list 里全是坑。
     Route::get('bookings', [\App\Http\Controllers\BookingAdminController::class, 'index'])->name('bookings.index');
     Route::get('bookings/{booking}', [\App\Http\Controllers\BookingAdminController::class, 'show'])->name('bookings.show');
     Route::post('bookings/{booking}/cancel', [\App\Http\Controllers\BookingAdminController::class, 'cancel'])->name('bookings.cancel');
+    Route::post('bookings/{booking}/check-in', [\App\Http\Controllers\BookingAdminController::class, 'checkIn'])->name('bookings.check-in');
+    Route::post('bookings/{booking}/check-out', [\App\Http\Controllers\BookingAdminController::class, 'checkOut'])->name('bookings.check-out');
 });
 
 require __DIR__.'/auth.php';

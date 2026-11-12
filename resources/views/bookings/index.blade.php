@@ -153,10 +153,21 @@
                                 <div class="inline-flex items-center gap-4">
                                     <a href="{{ route('bookings.show', $booking) }}" class="admin-action">详情</a>
                                     @if ($booking->status === \App\Models\Booking::STATUS_BOOKED)
+                                        <form method="POST" action="{{ route('bookings.check-in', $booking) }}"
+                                              onsubmit="return confirm('确定为订单「{{ $booking->order_no }}」办理入住吗？入住后该订单不可再取消。');">
+                                            @csrf
+                                            <button type="submit" class="admin-action">入住</button>
+                                        </form>
                                         <form method="POST" action="{{ route('bookings.cancel', $booking) }}"
                                               onsubmit="return confirm('确定取消订单「{{ $booking->order_no }}」吗？取消后 {{ $booking->room_count }} 间房量立即释放，且不可恢复。');">
                                             @csrf
                                             <button type="submit" class="admin-action admin-action--danger">取消</button>
+                                        </form>
+                                    @elseif ($booking->status === \App\Models\Booking::STATUS_CHECKED_IN)
+                                        <form method="POST" action="{{ route('bookings.check-out', $booking) }}"
+                                              onsubmit="return confirm('确定为订单「{{ $booking->order_no }}」办理退房吗？退房后 {{ $booking->room_count }} 间房量立即释放。');">
+                                            @csrf
+                                            <button type="submit" class="admin-action">退房</button>
                                         </form>
                                     @endif
                                 </div>

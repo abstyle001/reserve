@@ -10,13 +10,13 @@ use Illuminate\Http\Request;
 /**
  * 后台订单管理（/bookings，需登录）。
  *
- * 只有列表 / 详情 / 取消三件事，没有新建：后台补录一单要同时做房间分配、房量复核和
- * 日期校验，那是第二条写路径，本期不在范围内（见方案 §3.3）。
+ * 只有列表 / 详情 / 取消 / 入住退房核销，没有新建：后台补录一单要同时做房间分配、房量
+ * 复核和日期校验，那是第二条写路径，本期不在范围内（见方案 §3.3）。
  *
- * 取消与 C 端 FlyOrderController::cancel 用同一条条件 UPDATE，不是「读-改-写」：
- * sqlite 下 lockForUpdate 是语法级 no-op，只有 where status=已预订 的 UPDATE 本身是
- * 原子的，顾客和前台客服同时点也只有一人改到行。两处都必须走 Booking::STATUS_BOOKED
- * 这个条件，别在后台这边图省事直接 $booking->save()。
+ * 取消 / 入住 / 退房全部走「条件 UPDATE」而不是「读-改-写」：
+ * sqlite 下 lockForUpdate 是语法级 no-op，只有 where status=旧状态 的 UPDATE 本身是
+ * 原子的，两人同时点也只有一人改到行。状态机：已预订 → 已入住 → 已退房，已预订 → 已取消；
+ * 已入住仍计占用（Booking::activeStatuses），退房即释放，库存口径一行不用改。
  */
 class BookingAdminController extends Controller
 {
@@ -95,6 +95,42 @@ class BookingAdminController extends Controller
         }
 
         return back()->with('success', '订单 ' . $booking->order_no . ' 已取消，占用的 ' . $booking->room_count . ' 间房量已释放。');
+    }
+
+    /**
+     * 办理入住：已预订 → 已入住。状态 1 和 3 都在 activeStatuses 里，
+     * 所以这一步对房量口径零影响，只是核销标记。
+     */
+    public function checkIn(Booking $booking)
+    {
+        $moved = Booking::query()
+            ->where('id', $booking->id)
+            ->where('status', Booking::STATUS_BOOKED)
+            ->update(['status' => Booking::STATUS_CHECKED_IN]);
+
+        if ($moved === 0) {
+            return back()->with('error', '该订单当前是「' . $booking->fresh()->status_label . '」，不能办理入住。');
+        }
+
+        return back()->with('success', '订单 ' . $booking->order_no . ' 已办理入住，' . $booking->room_count . ' 间房量继续占用。');
+    }
+
+    /**
+     * 办理退房：已入住 → 已退房。已退房不在 activeStatuses 里，
+     * scopeActive 自动把它剔出占用集合，房量立刻释放（同取消的软释放思路，行不删）。
+     */
+    public function checkOut(Booking $booking)
+    {
+        $moved = Booking::query()
+            ->where('id', $booking->id)
+            ->where('status', Booking::STATUS_CHECKED_IN)
+            ->update(['status' => Booking::STATUS_CHECKED_OUT]);
+
+        if ($moved === 0) {
+            return back()->with('error', '该订单当前是「' . $booking->fresh()->status_label . '」，不能办理退房。');
+        }
+
+        return back()->with('success', '订单 ' . $booking->order_no . ' 已退房，' . $booking->room_count . ' 间房量已释放。');
     }
 
     /**

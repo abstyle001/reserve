@@ -101,7 +101,15 @@
                 <h2 class="mb-4 text-sm font-semibold text-gray-900">操作</h2>
 
                 @if ($booking->status === \App\Models\Booking::STATUS_BOOKED)
-                    <form method="POST" action="{{ route('bookings.cancel', $booking) }}"
+                    <form method="POST" action="{{ route('bookings.check-in', $booking) }}"
+                          onsubmit="return confirm('确定为订单「{{ $booking->order_no }}」办理入住吗？入住后该订单不可再取消。');">
+                        @csrf
+                        <p class="mb-3 text-xs leading-relaxed text-gray-500">
+                            客人到店核销：办理入住后房量继续占用（已入住仍计入库存口径），订单不可再取消。
+                        </p>
+                        <button type="submit" class="admin-btn-primary w-full justify-center">办理入住</button>
+                    </form>
+                    <form method="POST" action="{{ route('bookings.cancel', $booking) }}" class="mt-4"
                           onsubmit="return confirm('确定取消订单「{{ $booking->order_no }}」吗？取消后 {{ $booking->room_count }} 间房量立即释放，且不可恢复。');">
                         @csrf
                         <p class="mb-3 text-xs leading-relaxed text-gray-500">
@@ -109,6 +117,15 @@
                             该日期区间的占用立即释放。
                         </p>
                         <button type="submit" class="admin-btn-ghost w-full justify-center !text-red-600">取消订单</button>
+                    </form>
+                @elseif ($booking->status === \App\Models\Booking::STATUS_CHECKED_IN)
+                    <form method="POST" action="{{ route('bookings.check-out', $booking) }}"
+                          onsubmit="return confirm('确定为订单「{{ $booking->order_no }}」办理退房吗？退房后 {{ $booking->room_count }} 间房量立即释放。');">
+                        @csrf
+                        <p class="mb-3 text-xs leading-relaxed text-gray-500">
+                            客人离店核销：办理退房后状态改为「已退房」，{{ $booking->room_count }} 间房量立即释放，且不可回退。
+                        </p>
+                        <button type="submit" class="admin-btn-primary w-full justify-center">办理退房</button>
                     </form>
                 @else
                     <p class="text-sm leading-relaxed text-gray-500">

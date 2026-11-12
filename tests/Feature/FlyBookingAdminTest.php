@@ -11,11 +11,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * 后台订单管理（P7）：列表 / 详情 / 取消。
+ * 后台订单管理（P7）：列表 / 详情 / 取消 / 入住退房核销。
  *
  * 两条口径必须钉住：
  *   1) 后台看到的是完整姓名与手机号（脱敏只属于 C 端无登录态的查单页）；
- *   2) 取消是软流转，且必须把房量真的还回去 —— 用只读 JSON 接口复核，而不是各算各的。
+ *   2) 取消与退房都是软流转，且必须把房量真的还回去 —— 用只读 JSON 接口复核，而不是各算各的；
+ *      入住则相反：状态变了但房量必须继续占用（activeStatuses 含 3 已入住）。
  */
 class FlyBookingAdminTest extends TestCase
 {
@@ -110,6 +111,8 @@ class FlyBookingAdminTest extends TestCase
         $this->get('/bookings')->assertRedirect('/login');
         $this->get('/bookings/' . $booking->id)->assertRedirect('/login');
         $this->post('/bookings/' . $booking->id . '/cancel')->assertRedirect('/login');
+        $this->post('/bookings/' . $booking->id . '/check-in')->assertRedirect('/login');
+        $this->post('/bookings/' . $booking->id . '/check-out')->assertRedirect('/login');
     }
 
     public function test_index_shows_full_contact_instead_of_masked()
@@ -221,5 +224,67 @@ class FlyBookingAdminTest extends TestCase
         $this->assertSame(Booking::STATUS_CHECKED_IN, $booking->fresh()->status);
         // 已入住仍占用房量
         $this->assertSame(2, $this->remainingFor($this->checkIn, $this->checkOut));
+    }
+
+    public function test_check_in_keeps_occupancy_and_check_out_releases_it()
+    {
+        $booking = $this->makeBooking('YT261025000009');
+
+        // 已预订占 1 间，剩 2
+        $this->assertSame(2, $this->remainingFor($this->checkIn, $this->checkOut));
+
+        // 办理入住：状态前进，房量一口都不能多还（已入住仍计占用）
+        $this->post('/bookings/' . $booking->id . '/check-in')
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(Booking::STATUS_CHECKED_IN, $booking->fresh()->status);
+        $this->assertSame(2, $this->remainingFor($this->checkIn, $this->checkOut));
+
+        // 办理退房：软释放，行不删，房量立刻回来
+        $this->post('/bookings/' . $booking->id . '/check-out')
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(Booking::STATUS_CHECKED_OUT, $booking->fresh()->status);
+        $this->assertSame(3, $this->remainingFor($this->checkIn, $this->checkOut));
+    }
+
+    public function test_check_in_and_check_out_reject_illegal_transitions()
+    {
+        $booking = $this->makeBooking('YT261025000010');
+
+        // 已预订不能直接退房：必须先进过「已入住」
+        $this->post('/bookings/' . $booking->id . '/check-out')->assertSessionHas('error');
+        $this->assertSame(Booking::STATUS_BOOKED, $booking->fresh()->status);
+
+        // 入住后重复入住被拒，状态不回退
+        $this->post('/bookings/' . $booking->id . '/check-in')->assertSessionHas('success');
+        $this->post('/bookings/' . $booking->id . '/check-in')
+            ->assertSessionHas('error')
+            ->assertSessionMissing('success');
+        $this->assertSame(Booking::STATUS_CHECKED_IN, $booking->fresh()->status);
+
+        // 退房后是一条死胡同：不能再入住、不能再退房、也不能再取消
+        $this->post('/bookings/' . $booking->id . '/check-out')->assertSessionHas('success');
+        foreach (['check-in', 'check-out', 'cancel'] as $action) {
+            $this->post('/bookings/' . $booking->id . '/' . $action)->assertSessionHas('error');
+        }
+        $this->assertSame(Booking::STATUS_CHECKED_OUT, $booking->fresh()->status);
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => Booking::STATUS_CHECKED_OUT]);
+    }
+
+    public function test_cancelled_booking_cannot_be_checked_in()
+    {
+        $booking = $this->makeBooking('YT261025000011', [
+            'status'       => Booking::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+        ]);
+
+        $this->post('/bookings/' . $booking->id . '/check-in')->assertSessionHas('error');
+
+        $this->assertSame(Booking::STATUS_CANCELLED, $booking->fresh()->status);
+        // 已取消不占房量，入住被拒后也不能偷偷把房量占回来
+        $this->assertSame(3, $this->remainingFor($this->checkIn, $this->checkOut));
     }
 }

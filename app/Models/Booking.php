@@ -18,7 +18,7 @@ class Booking extends Model
 {
     const STATUS_BOOKED      = 1; // 已预订（占用房量）
     const STATUS_CANCELLED   = 2; // 已取消（不占用）
-    const STATUS_CHECKED_IN  = 3; // 已入住（占用；本期不写入，为核销预留）
+    const STATUS_CHECKED_IN  = 3; // 已入住（占用；后台 /bookings 核销写入）
     const STATUS_CHECKED_OUT = 4; // 已退房（不占用）
 
     public static $statusLabels = [
