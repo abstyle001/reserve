@@ -178,6 +178,45 @@ class ReserveStateTest extends TestCase
             ]);
     }
 
+    public function test_batch_number_remains_numeric_after_ten_batches()
+    {
+        $key = 'counter-10';
+
+        // 完成 10 个批次（每批 1 个号），让 batch_no 进入两位数
+        for ($batch = 1; $batch <= 10; $batch++) {
+            $taken = $this->postJson('/api/reserve', ['key' => $key])
+                ->assertOk()
+                ->assertJsonPath('code', 0)
+                ->json('data');
+
+            $this->assertSame($batch, (int) $taken['batch_no'], '批次号必须按数值递增');
+
+            $this->deleteJson('/api/reserve', [
+                'key'       => $key,
+                'batch_no'  => $taken['batch_no'],
+                'serial_no' => $taken['serial_no'],
+            ])->assertOk()->assertJsonPath('code', 0);
+        }
+
+        // 第 11 批：batch_no 必须取「数值最大 + 1」，不能被字符串排序当成 9 + 1
+        $taken = $this->postJson('/api/reserve', ['key' => $key])
+            ->assertOk()
+            ->assertJsonPath('code', 0)
+            ->json('data');
+
+        $this->assertSame(11, (int) $taken['batch_no']);
+
+        // 大屏 state 必须定位到最新批次，并下发该批次的号票
+        $this->getJson('/api/reserve/state?key=' . urlencode($key))
+            ->assertOk()
+            ->assertJsonPath('data.batch_no', 11)
+            ->assertJsonPath('data.current_no', 1)
+            ->assertJsonPath('data.active_count', 1)
+            ->assertJsonPath('data.tickets', [
+                ['serial_no' => 1, 'is_finish' => 0],
+            ]);
+    }
+
     public function test_tickets_only_contains_current_batch()
     {
         $key = 'counter-6';
